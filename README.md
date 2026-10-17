@@ -55,5 +55,12 @@
 - **Groq तेज़ दिमाग:** internet search वाला free AI (groq/compound), उसकी limit पर Gemini backup।
 - **सुधार:** Gemini आवाज़ अब निर्देश नहीं बोलती; search की दिक्कत पर बिना search के दोबारा कोशिश; आवाज़ streaming से चलती है (खरखराहट कम)।
 
+## Version 4 में नया — मेरे फ़ोन (admin)
+- अपने सभी फ़ोन एक ही account से login करें → Settings → “मेरे फ़ोन” में सबका हाल दिखे (battery, storage, आज के SMS/call count, location)।
+- किसी फ़ोन को **बजाओ** (ढूँढने के लिए ज़ोर से बजेगा), **location** मँगाएँ, या **status** ताज़ा करें।
+- हर काम सामने वाले फ़ोन पर भी दिखता है (AJ का notification/आवाज़), कुछ छुपा नहीं। सिर्फ अपने फ़ोनों के लिए।
+- Supabase: `supabase/aj_devices_setup.sql` एक बार Run करें। नियंत्रित फ़ोन पर AJ चालू/login रहे तभी वह जुड़ा रहता है।
+- (अगले update में: camera/recording — साफ़ indicator के साथ।)
+
 ## आगे (Phase 3 और बाद)
 Gemini AI दिमाग (free) · WhatsApp/Instagram मैसेज पढ़ना और reply · Emergency (112 auto call + location SMS) · Laptop से file · Fingerprint lock · Tasks/reminders

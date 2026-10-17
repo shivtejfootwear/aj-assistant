@@ -56,6 +56,131 @@ class SettingsCards(private val act: AppCompatActivity, private val box: LinearL
         box.addView(voiceCard())
         box.addView(brainCard())
         box.addView(cloudCard())
+        box.addView(devicesCard())
+    }
+
+    // =============================== 📱 मेरे फ़ोन (multi-device) ===============================
+
+    private var devices: List<DeviceSync.Device>? = null
+
+    private fun devicesCard(): View {
+        val card = card("📱 मेरे फ़ोन (admin)")
+        card.addView(
+            note(
+                "अपने सभी फ़ोन एक ही account से login करें। फिर यहाँ हर फ़ोन का हाल दिखेगा। " +
+                    "किसी फ़ोन को ढूँढने के लिए ‘बजाओ’ दबाएँ (वह फ़ोन ज़ोर से बजेगा), या ‘location’ से उसकी जगह मँगाएँ। " +
+                    "हर काम सामने वाले फ़ोन पर भी दिखता है, कुछ छुपा नहीं।"
+            )
+        )
+
+        if (!store.loggedIn) {
+            card.addView(text("इसके लिए ऊपर Cloud backup में login कीजिए।", R.color.text_dim))
+            return card
+        }
+
+        // इस फ़ोन का नाम
+        val nameBox = EditText(act).apply {
+            hint = "इस फ़ोन का नाम (जैसे: मेरा फ़ोन, दुकान वाला फ़ोन)"
+            setText(store.deviceName)
+            setTextColor(color(R.color.text))
+            setHintTextColor(color(R.color.text_dim))
+        }
+        card.addView(nameBox)
+        card.addView(button("इस फ़ोन का नाम सेव करो") {
+            store.deviceName = nameBox.text.toString().trim()
+            toast("नाम सेव ✅")
+            Thread { DeviceSync.pushHeartbeat(act) }.start()
+        })
+
+        card.addView(button("↻ सारे फ़ोन ताज़ा करो") { loadDevices(card) })
+
+        val list = devices
+        if (list == null) {
+            card.addView(text("‘ताज़ा करो’ दबाकर अपने फ़ोन देखें।", R.color.text_dim))
+        } else if (list.isEmpty()) {
+            card.addView(text("अभी कोई फ़ोन नहीं मिला। हर फ़ोन पर AJ खोलकर इसी account से login कीजिए।", R.color.text_dim))
+        } else {
+            list.forEach { card.addView(deviceRow(it, card)) }
+        }
+        return card
+    }
+
+    private fun loadDevices(card: LinearLayout) {
+        toast("फ़ोन ढूँढ रहा हूँ...")
+        Thread {
+            val d = DeviceSync.fetchDevices(act)
+            act.runOnUiThread {
+                devices = d ?: emptyList()
+                render()
+            }
+        }.start()
+    }
+
+    private fun deviceRow(d: DeviceSync.Device, card: LinearLayout): View {
+        val box = LinearLayout(act).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_tile)
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(10) }
+        }
+        val online = d.lastSeenMinAgo in 0..3
+        val seen = when {
+            d.lastSeenMinAgo < 0 -> ""
+            d.lastSeenMinAgo == 0L -> " • अभी online"
+            d.lastSeenMinAgo < 60 -> " • ${d.lastSeenMinAgo} मिनट पहले"
+            else -> " • ${d.lastSeenMinAgo / 60} घंटे पहले"
+        }
+        box.addView(text((if (online) "🟢 " else "⚪ ") + d.name + (if (d.isThis) " (यही फ़ोन)" else "") + seen, R.color.cyan))
+
+        val s = d.status
+        val parts = ArrayList<String>()
+        if (s.has("battery")) parts.add("🔋 ${s.optInt("battery")}%" + if (s.optBoolean("charging")) " ⚡" else "")
+        if (s.has("free_gb")) parts.add("💾 ${s.optString("free_gb")}/${s.optString("total_gb")} GB")
+        if (s.has("sms")) parts.add("✉ ${s.optInt("sms")}")
+        if (s.has("missed")) parts.add("📞 ${s.optInt("missed")} missed")
+        if (parts.isNotEmpty()) box.addView(text(parts.joinToString("   "), R.color.text))
+        if (s.has("missed_names")) {
+            val names = (0 until s.optJSONArray("missed_names")!!.length()).joinToString(", ") {
+                s.optJSONArray("missed_names")!!.optString(it)
+            }
+            if (names.isNotBlank()) box.addView(text("Missed: $names", R.color.text_dim))
+        }
+        if (s.has("lat")) {
+            val age = s.optLong("loc_age_min")
+            box.addView(text("📍 location ${if (age > 0) "($age मिनट पुरानी)" else ""}", R.color.text_dim).apply {
+                setOnClickListener {
+                    openUrl("https://www.google.com/maps/search/?api=1&query=${s.optDouble("lat")},${s.optDouble("lon")}")
+                }
+            })
+        }
+
+        if (!d.isThis) {
+            box.addView(row(
+                button("🔔 बजाओ") { cmd(d, "ring") },
+                button("📍 location") { cmd(d, "locate") },
+                button("↻ status") { cmd(d, "status") }
+            ))
+        }
+        return box
+    }
+
+    private fun cmd(d: DeviceSync.Device, type: String) {
+        toast("भेज रहा हूँ...")
+        Thread {
+            val err = DeviceSync.sendCommand(act, d.id, type)
+            act.runOnUiThread {
+                if (err != null) toast(err)
+                else toast(
+                    when (type) {
+                        "ring" -> "${d.name} बजने लगेगा (जब वह फ़ोन online हो)"
+                        "locate" -> "${d.name} से location माँगी, थोड़ी देर में ‘ताज़ा’ दबाएँ"
+                        else -> "${d.name} से ताज़ा जानकारी माँगी, थोड़ी देर में ‘ताज़ा’ दबाएँ"
+                    }
+                )
+            }
+        }.start()
     }
 
     // =============================== 🔊 आवाज़ ===============================

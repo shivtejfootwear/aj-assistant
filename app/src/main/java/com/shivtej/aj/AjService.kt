@@ -73,6 +73,18 @@ class AjService : Service(), TextToSpeech.OnInitListener {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private val deviceTick = object : Runnable {
+        override fun run() {
+            worker.execute {
+                try {
+                    DeviceSync.runPendingCommands(this@AjService)
+                } catch (_: Exception) {
+                }
+            }
+            main.postDelayed(this, 45_000)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         store = Store(this)
@@ -80,10 +92,16 @@ class AjService : Service(), TextToSpeech.OnInitListener {
         goForeground(statusLine())
         wake = WakeWordEngine(this) { main.post { onWakeWord() } }
         tts = TextToSpeech(this, this)
+        // दूसरे फ़ोन से आए काम और अपनी जानकारी cloud पर (हर 45 सेकंड)
+        if (store.loggedIn) main.postDelayed(deviceTick, 3000)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         goForeground(statusLine())
+        if (store.loggedIn) {
+            main.removeCallbacks(deviceTick)
+            main.postDelayed(deviceTick, 1500)
+        }
         when (intent?.action) {
             ACTION_LISTEN -> startConversation()
             ACTION_TEXT -> {
@@ -103,7 +121,9 @@ class AjService : Service(), TextToSpeech.OnInitListener {
                 wake.stop()
                 stopSpeaking()
                 AjBus.setStatus("AJ आराम कर रहा है")
-                stopEverything()
+                main.removeCallbacks(deviceTick)
+                ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+                stopSelf()
                 return START_NOT_STICKY
             }
             else -> applyWakeSetting()
@@ -112,6 +132,7 @@ class AjService : Service(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
+        main.removeCallbacks(deviceTick)
         stopRecognizer()
         PcmPlayer.stop()
         worker.shutdown()
@@ -134,6 +155,12 @@ class AjService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun stopEverything() {
+        // Cloud login हो तो service चलता रहे, ताकि यह फ़ोन admin से जुड़ा रहे (status/locate/ring)
+        if (store.loggedIn) {
+            updateNotification()
+            return
+        }
+        main.removeCallbacks(deviceTick)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

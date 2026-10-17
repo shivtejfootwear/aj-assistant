@@ -25,6 +25,22 @@ class Store(context: Context) {
         get() = prefs.getBoolean("wake_enabled", false)
         set(value) = prefs.edit().putBoolean("wake_enabled", value).apply()
 
+    /** इस फ़ोन की पक्की पहचान (एक बार बनती है, cloud में नहीं जाती) */
+    val deviceId: String
+        get() {
+            var id = prefs.getString("device_id", null)
+            if (id.isNullOrBlank()) {
+                id = "dev_" + java.util.UUID.randomUUID().toString().take(12)
+                prefs.edit().putString("device_id", id).apply()
+            }
+            return id
+        }
+
+    /** इस फ़ोन का नाम जो admin में दिखेगा (per phone, cloud में नहीं) */
+    var deviceName: String
+        get() = prefs.getString("device_name", "") ?: ""
+        set(value) = prefs.edit().putString("device_name", value.trim()).apply()
+
     // Cloud login (सिर्फ इसी फ़ोन पर)
     var cloudUrl: String
         get() = prefs.getString("cloud_url", null)?.takeIf { it.isNotBlank() } ?: BuildConfig.SUPABASE_URL

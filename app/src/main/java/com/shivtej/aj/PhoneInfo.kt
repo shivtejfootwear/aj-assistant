@@ -137,6 +137,29 @@ object PhoneInfo {
         }
     }
 
+    // ---------------- Location ----------------
+
+    /** फ़ोन कहाँ है: (lat, lon, कितने मिनट पुरानी) या null */
+    fun lastLocation(ctx: Context): Triple<Double, Double, Long>? {
+        val fine = has(ctx, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarse = has(ctx, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (!fine && !coarse) return null
+        return try {
+            val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as android.location.LocationManager
+            var best: android.location.Location? = null
+            for (p in lm.getProviders(true)) {
+                val l = lm.getLastKnownLocation(p) ?: continue
+                if (best == null || l.time > best!!.time) best = l
+            }
+            best?.let {
+                val ageMin = (System.currentTimeMillis() - it.time) / 60000
+                Triple(it.latitude, it.longitude, ageMin)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // ---------------- Contacts ----------------
 
     fun contactName(ctx: Context, number: String): String? {

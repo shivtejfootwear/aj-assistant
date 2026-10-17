@@ -31,6 +31,11 @@
     <!-- timer / alarm -->
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
+    <!-- अपने दूसरे फ़ोन का हाल और location (multi-device admin) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />

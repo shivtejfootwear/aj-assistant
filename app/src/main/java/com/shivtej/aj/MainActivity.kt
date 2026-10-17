@@ -128,9 +128,10 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         renderHistory()
         renderPermissions()
         settingsCards.render()
-        // Login हो तो cloud से ताज़ा data लाकर मिलाओ
+        // Login हो तो cloud से ताज़ा data लाकर मिलाओ, और इस फ़ोन को admin से जोड़े रखो
         if (Store(this).loggedIn) {
             CloudSync.syncInBackground(this) { runOnUiThread { refreshAll() } }
+            AjService.send(this, AjService.ACTION_START)
         }
         // wake word चालू हो तो AJ को चलता रखो
         if (store.wakeEnabled && WakeWordEngine.isModelReady(this) &&
@@ -570,6 +571,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         runtimeRow("कॉल लिस्ट", Manifest.permission.READ_CALL_LOG)
         runtimeRow("Contacts (नाम से कॉल/मैसेज)", Manifest.permission.READ_CONTACTS)
         runtimeRow("कॉल लगाना", Manifest.permission.CALL_PHONE)
+        runtimeRow("Location (फ़ोन कहाँ है)", Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= 33) runtimeRow("Notification दिखाना", Manifest.permission.POST_NOTIFICATIONS)
 
         addRow("सारी फाइलें (आज के downloads)", PhoneInfo.canReadAllFiles(this)) {

@@ -189,6 +189,13 @@ object CloudSync {
         return msg
     }
 
+    /** DeviceSync के लिए: session पक्का करके auth headers दो, न हो तो null */
+    fun authHeadersEnsured(ctx: Context): Map<String, String>? {
+        val store = Store(ctx)
+        if (!isConfigured(store) || !ensureSession(store)) return null
+        return authHeaders(store)
+    }
+
     // ---------------- helper ----------------
 
     private fun baseHeaders(store: Store) = mapOf(
