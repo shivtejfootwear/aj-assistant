@@ -213,6 +213,13 @@
                 android:orientation="vertical" />
         </LinearLayout>
 
+        <!-- आवाज़, AI दिमाग, Cloud backup (code से बनते हैं) -->
+        <LinearLayout
+            android:id="@+id/extraBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
         <!-- Permissions -->
         <LinearLayout
             android:layout_width="match_parent"

@@ -69,16 +69,23 @@ object CommandEngine {
         searchCommand(ctx, t)?.let { return it }
 
         // 4) जानकारी वाले सवाल
-        if (hasAny(t, "मैसेज", "मेसेज", "message", "sms", "एसएमएस", "संदेश")) return smsReport(ctx, t)
-        if (hasAny(t, "कॉल", "call", "फोन", "मिस्ड", "missed")) callReport(ctx)?.let { return it }
-        if (hasAny(t, "डाउनलोड", "download")) return downloadsReport(ctx)
-        if (hasAny(t, "स्टोरेज", "storage", "मेमोरी", "memory", "जगह", "स्पेस", "space")) return storageReport()
-        if (hasAny(t, "बैटरी", "battery", "चार्ज", "charge")) return batteryReport(ctx)
-        if (hasAny(t, "तारीख", "date", "दिनांक", "कौन सा दिन", "क्या दिन")) return Reply(todayDate())
-        if (hasAny(t, "टाइम", "time", "समय", "कितने बजे", "क्या बजा", "बजे हैं")) return Reply("अभी ${hindiTime(nowHour(), nowMinute())} हैं।")
+        // (अंग्रेज़ी के छोटे शब्द पूरे शब्द की तरह मिलाते हैं, ताकि "update" में "date" न पकड़े)
+        val mine = hasAny(t, "आज", "मेरे", "मेरा", "मेरी", "मुझे", "किसका", "किसकी", "किसके", "कितने", "कितनी", "कितना", "पढो", "सुनाओ", "बताओ", "आया", "आए", "आई", "नए", "नया", "दिखाओ") ||
+            hasWord(words, "my", "today")
+        if (mine && (hasAny(t, "मैसेज", "मेसेज", "एसएमएस", "संदेश") || hasWord(words, "message", "messages", "sms"))) return smsReport(ctx, t)
+        if (mine && (hasAny(t, "कॉल", "मिस्ड") || hasWord(words, "call", "calls", "missed"))) callReport(ctx)?.let { return it }
+        if (mine && (hasAny(t, "डाउनलोड") || hasWord(words, "download", "downloads"))) return downloadsReport(ctx)
+        if (hasAny(t, "स्टोरेज", "मेमोरी", "स्पेस") || hasWord(words, "storage", "memory", "space") ||
+            (t.contains("जगह") && hasAny(t, "फोन", "मोबाइल", "कितनी"))
+        ) return storageReport()
+        if (hasAny(t, "बैटरी") || hasWord(words, "battery") || (t.contains("चार्ज") && hasAny(t, "फोन", "मोबाइल", "कितना", "कितनी"))) return batteryReport(ctx)
+        if (hasAny(t, "तारीख", "दिनांक", "आज कौन सा दिन", "आज क्या दिन") || hasWord(words, "date")) return Reply(todayDate())
+        if (hasAny(t, "कितने बजे", "क्या बजा", "बजे हैं", "क्या टाइम", "टाइम क्या", "कितना टाइम", "समय क्या", "क्या समय") || hasWord(words, "time")) return Reply("अभी ${hindiTime(nowHour(), nowMinute())} हैं।")
         if (hasAny(t, "क्या कर सकते", "help", "मदद", "क्या क्या", "हेल्प")) return Reply(HELP)
 
-        return Reply("माफ़ कीजिए, यह अभी मुझे नहीं आता। आप AJ app में ‘AJ को सिखाओ’ से मुझे यह सिखा सकते हैं।")
+        // 5) बाकी हर सवाल: internet वाला दिमाग (Gemini + Google Search)
+        //    (यह function background thread पर चलता है, इसलिए internet call ठीक है)
+        return Reply(GeminiAi.ask(ctx, raw.trim()))
     }
 
     // =====================================================================
@@ -280,6 +287,7 @@ object CommandEngine {
     private val OPEN_EN_REGEX = Regex("^(?:open|ओपन) (.+)$")
 
     private fun openAppCommand(ctx: Context, t: String): Reply? {
+        if (hasAny(t, "सर्च", "search", "ढूंढो", "खोजो")) return null
         val name = OPEN_REGEX.find(t)?.groupValues?.get(1)?.trim()
             ?: OPEN_EN_REGEX.find(t)?.groupValues?.get(1)?.trim()
             ?: return null
@@ -312,11 +320,17 @@ object CommandEngine {
     // ---- Google search ----
 
     private fun searchCommand(ctx: Context, t: String): Reply? {
-        if (!hasAny(t, "सर्च", "search", "ढूंढो", "खोजो", "गूगल", "google")) return null
+        if (!hasAny(t, "सर्च", "search", "ढूंढो", "खोजो")) return null
         var q = t.replace(Regex("^(गूगल|google) ?(पे|पर|में|पर जाकर|पे जाकर)? ?"), "")
         q = q.replace(Regex(" ?(को )?(सर्च|search|ढूंढो|खोजो) ?(करो|कर दो|करना|कीजिए|कर)?$"), "").trim()
         if (q.isBlank()) return Reply("क्या सर्च करना है? जैसे बोलिए: गूगल पे आज का मौसम सर्च करो।")
         val query = q
+        // Gemini key हो तो AJ खुद Google से पता करके बोलकर बताएगा;
+        // "खोलो / दिखाओ / browser" बोला हो तो Google का page खोलेगा
+        val wantsPage = hasAny(t, "खोलो", "दिखाओ", "ब्राउजर", "browser", "पेज")
+        if (Store(ctx).geminiKey.isNotBlank() && !wantsPage) {
+            return Reply(GeminiAi.ask(ctx, "Google पर पता करके बताओ: $query"))
+        }
         return Reply("गूगल पे $query सर्च कर रहा हूँ।", action = {
             val i = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(query)))
             i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -380,6 +394,8 @@ object CommandEngine {
 
     private fun hasAny(t: String, vararg keys: String) = keys.any { t.contains(it) }
 
+    private fun hasWord(words: Set<String>, vararg keys: String) = keys.any { it in words }
+
     private fun nowHour() = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
     private fun nowMinute() = Calendar.getInstance().get(Calendar.MINUTE)
 
@@ -401,5 +417,5 @@ object CommandEngine {
 
     private const val HELP = "मैं ये काम कर सकता हूँ: आज के मैसेज और कॉल बताना, किसी को कॉल लगाना या मैसेज भेजना, " +
         "स्टोरेज, बैटरी और आज के डाउनलोड बताना, टाइमर और अलार्म लगाना, टॉर्च जलाना, गूगल पे सर्च करना, कोई भी app खोलना, " +
-        "और जो आप मुझे सिखाएँ वो जवाब देना।"
+        "जो आप मुझे सिखाएँ वो जवाब देना, और बाकी कोई भी सवाल internet और Google से पता करके बताना।"
 }

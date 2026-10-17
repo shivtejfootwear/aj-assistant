@@ -24,6 +24,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import java.util.Locale
+import java.util.concurrent.Executors
 
 /**
  * AJ का असली काम यहाँ होता है: "AJ" सुनना → बीप → आपकी बात सुनना → समझना → बोलना → काम करना।
@@ -59,6 +60,10 @@ class AjService : Service(), TextToSpeech.OnInitListener {
     private val afterAction = HashMap<String, () -> Unit>()
     private var utteranceCounter = 0
 
+    private val worker = Executors.newSingleThreadExecutor()
+    private var turnToken = 0
+    private var currentSpeechId: String? = null
+
     private var recognizer: SpeechRecognizer? = null
     private var busy = false
     private var noSpeechCount = 0
@@ -93,9 +98,10 @@ class AjService : Service(), TextToSpeech.OnInitListener {
             ACTION_STOP -> {
                 store.wakeEnabled = false
                 busy = false
+                turnToken++
                 stopRecognizer()
                 wake.stop()
-                tts?.stop()
+                stopSpeaking()
                 AjBus.setStatus("AJ आराम कर रहा है")
                 stopEverything()
                 return START_NOT_STICKY
@@ -107,6 +113,8 @@ class AjService : Service(), TextToSpeech.OnInitListener {
 
     override fun onDestroy() {
         stopRecognizer()
+        PcmPlayer.stop()
+        worker.shutdown()
         wake.release()
         tts?.shutdown()
         tts = null
@@ -141,8 +149,9 @@ class AjService : Service(), TextToSpeech.OnInitListener {
         if (busy && recognizer != null) return // पहले से सुन रहा है
         busy = true
         noSpeechCount = 0
+        turnToken++
         wake.stop()
-        tts?.stop()
+        stopSpeaking()
         beep()
         main.postDelayed({ startRecognizer() }, 350)
     }
@@ -241,15 +250,22 @@ class AjService : Service(), TextToSpeech.OnInitListener {
         store.addHistory("आप", text)
         AjBus.historyChanged()
         AjBus.setStatus("🤔 समझ रहा हूँ...")
-        val reply = try {
-            CommandEngine.handle(this, text)
-        } catch (e: Exception) {
-            Reply("माफ़ कीजिए, कुछ गड़बड़ हो गई: ${e.message ?: ""}")
+        val token = ++turnToken
+        // समझना background में (internet वाले सवाल में कुछ सेकंड लग सकते हैं)
+        worker.execute {
+            val reply = try {
+                CommandEngine.handle(this, text)
+            } catch (e: Exception) {
+                Reply("माफ़ कीजिए, कुछ गड़बड़ हो गई: ${e.message ?: ""}")
+            }
+            main.post {
+                if (token != turnToken) return@post // बीच में नई बात शुरू हो गई
+                store.addHistory("AJ", reply.speak)
+                AjBus.historyChanged()
+                noSpeechCount = 1 // फिर से पूछने पर चुप रहे तो greeting दोबारा नहीं
+                speak(reply.speak, reply.listenAgain, reply.action)
+            }
         }
-        store.addHistory("AJ", reply.speak)
-        AjBus.historyChanged()
-        noSpeechCount = 1 // फिर से पूछने पर चुप रहे तो greeting दोबारा नहीं
-        speak(reply.speak, reply.listenAgain, reply.action)
     }
 
     private fun finishConversation() {
@@ -289,6 +305,7 @@ class AjService : Service(), TextToSpeech.OnInitListener {
                 }
             })
             ttsReady = true
+            applyVoiceSettings(engine)
             queuedSpeech.forEach { (text, id) -> engine.speak(text, TextToSpeech.QUEUE_ADD, null, id) }
         } else {
             ttsFailed = true
@@ -300,15 +317,60 @@ class AjService : Service(), TextToSpeech.OnInitListener {
     private fun speak(text: String, listenAgain: Boolean = false, action: (() -> Unit)? = null) {
         busy = true
         val id = "aj_${++utteranceCounter}"
+        currentSpeechId = id
         afterListen[id] = listenAgain
         if (action != null) afterAction[id] = action
         AjBus.setStatus("🗣 $text")
+
+        // Gemini की असली आवाज़ चुनी हो तो पहले वो; न बने तो फ़ोन वाली
+        if (store.geminiVoiceOn && store.geminiKey.isNotBlank()) {
+            worker.execute {
+                val audio = try {
+                    GeminiAi.synthesize(this, text)
+                } catch (e: Exception) {
+                    null
+                }
+                main.post {
+                    if (currentSpeechId != id) return@post // बीच में रोक दिया गया
+                    if (audio != null) PcmPlayer.play(audio.first, audio.second) { afterSpeech(id) }
+                    else phoneSpeak(text, id)
+                }
+            }
+            return
+        }
+        phoneSpeak(text, id)
+    }
+
+    /** फ़ोन की आवाज़: आपकी चुनी हुई आवाज़, speed और pitch के साथ */
+    private fun phoneSpeak(text: String, id: String) {
         val engine = tts
         when {
-            ttsReady && engine != null -> engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
+            ttsReady && engine != null -> {
+                applyVoiceSettings(engine)
+                engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, id)
+            }
             ttsFailed || engine == null -> main.post { afterSpeech(id) }
             else -> queuedSpeech.add(text to id)
         }
+    }
+
+    private fun applyVoiceSettings(engine: TextToSpeech) {
+        try {
+            val wanted = store.voiceName
+            if (wanted.isNotBlank()) {
+                engine.voices?.firstOrNull { it.name == wanted }?.let { engine.voice = it }
+            }
+            engine.setPitch(store.pitch)
+            engine.setSpeechRate(store.rate)
+        } catch (_: Exception) {
+        }
+    }
+
+    /** जो बोल रहा है उसे तुरंत रोकना */
+    private fun stopSpeaking() {
+        currentSpeechId = null
+        tts?.stop()
+        PcmPlayer.stop()
     }
 
     private fun afterSpeech(id: String?) {

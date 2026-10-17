@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
     private lateinit var typeBox: EditText
 
     private var ignoreSwitch = false
+    private lateinit var settingsCards: SettingsCards
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -70,6 +71,9 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
 
         wakeSwitch.setOnCheckedChangeListener { _, checked -> onWakeToggled(checked) }
 
+        // आवाज़, AI दिमाग, Cloud backup वाले हिस्से
+        settingsCards = SettingsCards(this, findViewById(R.id.extraBox))
+
         // पहली बार खुलने पर ज़रूरी permissions माँगो
         if (savedInstanceState == null && !PhoneInfo.has(this, Manifest.permission.RECORD_AUDIO)) {
             requestRuntime(basicPermissions())
@@ -93,12 +97,30 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         renderTeaches()
         renderHistory()
         renderPermissions()
+        settingsCards.render()
+        // Login हो तो cloud से ताज़ा data लाकर मिलाओ
+        if (Store(this).loggedIn) {
+            CloudSync.syncInBackground(this) { runOnUiThread { refreshAll() } }
+        }
         // wake word चालू हो तो AJ को चलता रखो
         if (store.wakeEnabled && WakeWordEngine.isModelReady(this) &&
             PhoneInfo.has(this, Manifest.permission.RECORD_AUDIO)
         ) {
             AjService.send(this, AjService.ACTION_START)
         }
+    }
+
+    override fun onDestroy() {
+        settingsCards.destroy()
+        super.onDestroy()
+    }
+
+    /** cloud से data आने के बाद पूरा dashboard ताज़ा करना */
+    fun refreshAll() {
+        if (isFinishing || isDestroyed) return
+        renderTeaches()
+        renderHistory()
+        settingsCards.render()
     }
 
     // ---------------- AjBus ----------------

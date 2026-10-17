@@ -16,6 +16,17 @@ android {
         targetSdk = 34
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
+
+        // Cloud (Supabase) का पता: GitHub secrets से आता है, ताकि reinstall के बाद सिर्फ login करना पड़े।
+        // न हो तो app के अंदर भी डाल सकते हैं।
+        val supabaseUrl = System.getenv("AJ_SUPABASE_URL") ?: ""
+        val supabaseKey = System.getenv("AJ_SUPABASE_ANON_KEY") ?: ""
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseKey\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     // हमेशा एक ही key से sign होगा, इसलिए update के लिए uninstall नहीं करना पड़ेगा (data बचा रहेगा)

@@ -25,6 +25,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: APK बनाओ
+        env:
+          AJ_SUPABASE_URL: ${{ secrets.AJ_SUPABASE_URL }}
+          AJ_SUPABASE_ANON_KEY: ${{ secrets.AJ_SUPABASE_ANON_KEY }}
         run: |
           chmod +x gradlew
           ./gradlew assembleRelease --stacktrace

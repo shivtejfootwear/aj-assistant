@@ -44,5 +44,11 @@
 - फ़ोन restart होने के बाद AJ app एक बार खोल दें, ताकि “AJ” सुनना फिर शुरू हो।
 - कोई permission “restricted setting” बोलकर न मिले: Settings → Apps → AJ → ⋮ → **Allow restricted settings**।
 
-## आगे (Phase 2 और बाद)
+## Version 2 में नया
+- **AI दिमाग:** फ़ोन वाले commands के बाहर का हर सवाल Gemini (free) को, Google Search के साथ। Key app में डालनी है (SMS/OTP Gemini को नहीं जाते)।
+- **अच्छी आवाज़:** फ़ोन की हिंदी आवाज़ें चुनना (speed, pitch) + Gemini की इंसान जैसी आवाज़; न चले तो फ़ोन वाली।
+- **Cloud backup:** Supabase login; सीखी बातें, बातचीत, settings cloud में; reinstall पर login करते ही वापस; रोज़ की अलग copy (180 दिन)।
+- Supabase setup: `supabase/aj_setup.sql` SQL Editor में Run करें। Project URL और anon key GitHub secrets `AJ_SUPABASE_URL`, `AJ_SUPABASE_ANON_KEY` में डालें (या app के अंदर)।
+
+## आगे (Phase 3 और बाद)
 Gemini AI दिमाग (free) · WhatsApp/Instagram मैसेज पढ़ना और reply · Emergency (112 auto call + location SMS) · Laptop से file · Fingerprint lock · Tasks/reminders
