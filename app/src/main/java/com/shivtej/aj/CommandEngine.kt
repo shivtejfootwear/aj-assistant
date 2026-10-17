@@ -85,7 +85,7 @@ object CommandEngine {
 
         // 5) बाकी हर सवाल: internet वाला दिमाग (Gemini + Google Search)
         //    (यह function background thread पर चलता है, इसलिए internet call ठीक है)
-        return Reply(GeminiAi.ask(ctx, raw.trim()))
+        return Reply(Brain.ask(ctx, raw.trim()))
     }
 
     // =====================================================================
@@ -328,8 +328,8 @@ object CommandEngine {
         // Gemini key हो तो AJ खुद Google से पता करके बोलकर बताएगा;
         // "खोलो / दिखाओ / browser" बोला हो तो Google का page खोलेगा
         val wantsPage = hasAny(t, "खोलो", "दिखाओ", "ब्राउजर", "browser", "पेज")
-        if (Store(ctx).geminiKey.isNotBlank() && !wantsPage) {
-            return Reply(GeminiAi.ask(ctx, "Google पर पता करके बताओ: $query"))
+        if ((Store(ctx).geminiKey.isNotBlank() || Store(ctx).groqKey.isNotBlank()) && !wantsPage) {
+            return Reply(Brain.ask(ctx, "internet पर पता करके बताओ: $query"))
         }
         return Reply("गूगल पे $query सर्च कर रहा हूँ।", action = {
             val i = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(query)))

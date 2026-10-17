@@ -141,6 +141,17 @@ object TextUtil {
         return bestIndex
     }
 
+    /** AI के जवाब को आवाज़ में सुनाने लायक साफ़ करना (markdown, links, [1] जैसे निशान हटाना) */
+    fun cleanForSpeech(s: String): String = s
+        .replace(Regex("(?s)<think>.*?</think>"), "")
+        .replace(Regex("\\[[0-9, ]+]"), "")
+        .replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")
+        .replace(Regex("https?://\\S+"), "")
+        .replace(Regex("[*#_`>|]"), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .take(700)
+
     // ---------------- गिनती ----------------
 
     private val NUMBER_WORDS = listOf(

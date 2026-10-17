@@ -17,6 +17,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
+import com.google.android.material.button.MaterialButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -64,7 +65,7 @@ class SettingsCards(private val act: AppCompatActivity, private val box: LinearL
 
         // Gemini की असली आवाज़
         val gSwitch = SwitchCompat(act).apply {
-            text = "Gemini की असली, इंसान जैसी आवाज़ (internet, free)"
+            text = "Gemini की इंसान जैसी आवाज़ (internet, जवाब 3-5 सेकंड धीमा)"
             setTextColor(color(R.color.text))
             textSize = 15f
             isChecked = store.geminiVoiceOn
@@ -200,59 +201,82 @@ class SettingsCards(private val act: AppCompatActivity, private val box: LinearL
     // =============================== 🤖 AI दिमाग ===============================
 
     private fun brainCard(): View {
-        val card = card("🤖 AI दिमाग (Gemini + Google Search)")
-        val has = store.geminiKey.isNotBlank()
+        val card = card("🤖 AI दिमाग (internet से जवाब)")
         card.addView(
-            text(
-                if (has) "✅ Key लगी है (…${store.geminiKey.takeLast(4)})। जो सवाल फ़ोन के commands में नहीं आते, AJ उन्हें Google से पता करके बताएगा।"
-                else "❌ Key नहीं लगी। Key free है, कोई card नहीं माँगता।",
-                if (has) R.color.text else R.color.text_dim
+            note(
+                "जो सवाल फ़ोन के commands में नहीं आते, AJ उन्हें internet से पता करके बताता है। " +
+                    "पहले Groq (सबसे तेज़, internet search के साथ), उसकी limit लगे तो Gemini। दोनों free, कोई card नहीं।"
             )
         )
-        val keyBox = EditText(act).apply {
-            hint = if (has) "नई key डालनी हो तो यहाँ paste करें" else "Gemini API key यहाँ paste करें"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            setTextColor(color(R.color.text))
-            setHintTextColor(color(R.color.text_dim))
-        }
-        card.addView(keyBox)
+
+        // ---- Groq ----
+        card.addView(text("⚡ Groq (तेज़, पहले यही)", R.color.cyan))
+        card.addView(keyStatus(store.groqKey))
+        val groqBox = keyInput(store.groqKey.isNotBlank(), "Groq API key (gsk_…) यहाँ paste करें")
+        card.addView(groqBox)
         card.addView(row(
             button("सेव करो") {
-                val k = keyBox.text.toString().trim()
-                if (k.length < 20) {
-                    toast("Key पूरी paste कीजिए")
-                } else {
-                    store.geminiKey = k
-                    toast("Key सेव हो गई ✅")
+                val k = groqBox.text.toString().trim()
+                if (k.length < 20) toast("Key पूरी paste कीजिए") else {
+                    store.groqKey = k
+                    toast("Groq key सेव हो गई ✅")
                     render()
                 }
             },
-            button("Test करो") { testBrain() }
+            button("Key बनाओ") { openUrl("https://console.groq.com/keys") }
         ))
-        card.addView(button("Free key बनाने का page खोलो") {
-            openUrl("https://aistudio.google.com/apikey")
-        })
+
+        // ---- Gemini ----
+        card.addView(text("✦ Gemini (backup + असली आवाज़)", R.color.violet))
+        card.addView(keyStatus(store.geminiKey))
+        val gemBox = keyInput(store.geminiKey.isNotBlank(), "Gemini API key यहाँ paste करें")
+        card.addView(gemBox)
+        card.addView(row(
+            button("सेव करो") {
+                val k = gemBox.text.toString().trim()
+                if (k.length < 20) toast("Key पूरी paste कीजिए") else {
+                    store.geminiKey = k
+                    toast("Gemini key सेव हो गई ✅")
+                    render()
+                }
+            },
+            button("Key बनाओ") { openUrl("https://aistudio.google.com/apikey") }
+        ))
+
+        card.addView(button("🧪 AI दिमाग Test करो") { testBrain() })
         card.addView(
             note(
-                "बिना billing के Google पैसे नहीं काट सकता; free limit खत्म हो तो बस उस दिन के लिए रुक जाता है। " +
-                    "आपके SMS, कॉल और OTP Gemini को नहीं भेजे जाते, सिर्फ आपके पूछे सवाल। " +
-                    "Free tier में Google सवालों को अपने सुधार के लिए देख सकता है, इसलिए बहुत निजी बातें न पूछें।"
+                "बिना billing के ये पैसे नहीं काट सकते; free limit भर जाए तो बस थोड़ी देर रुकते हैं। " +
+                    "आपके SMS, कॉल और OTP AI को नहीं भेजे जाते, सिर्फ आपके पूछे सवाल। Free tier में कंपनियाँ सवाल अपने सुधार के लिए देख सकती हैं, इसलिए बहुत निजी बातें न पूछें।"
             )
         )
         return card
     }
 
+    private fun keyStatus(key: String): TextView =
+        if (key.isNotBlank()) text("✅ Key लगी है (…${key.takeLast(4)})", R.color.ok)
+        else text("❌ Key नहीं लगी", R.color.text_dim)
+
+    private fun keyInput(has: Boolean, hintText: String): EditText = EditText(act).apply {
+        hint = if (has) "नई key डालनी हो तो यहाँ paste करें" else hintText
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        setTextColor(color(R.color.text))
+        setHintTextColor(color(R.color.text_dim))
+    }
+
     private fun testBrain() {
-        if (store.geminiKey.isBlank()) {
-            toast("पहले key सेव कीजिए")
+        if (store.geminiKey.isBlank() && store.groqKey.isBlank()) {
+            toast("पहले Groq या Gemini key सेव कीजिए")
             return
         }
-        toast("Gemini से पूछ रहा हूँ...")
+        toast("AI से पूछ रहा हूँ...")
         Thread {
-            val answer = GeminiAi.ask(act, "नमस्ते AJ, एक लाइन में बताओ तुम कौन हो और आज की तारीख क्या है?")
+            val started = System.currentTimeMillis()
+            val answer = Brain.ask(act, "नमस्ते AJ, एक लाइन में बताओ तुम कौन हो और आज भारत की कोई एक बड़ी खबर क्या है?")
+            val secs = (System.currentTimeMillis() - started) / 100 / 10.0
             act.runOnUiThread {
                 AlertDialog.Builder(act)
-                    .setTitle("Gemini का जवाब")
+                    .setTitle("AI का जवाब (${secs} सेकंड)")
                     .setMessage(answer)
                     .setPositiveButton("ठीक है", null)
                     .show()
@@ -407,7 +431,7 @@ class SettingsCards(private val act: AppCompatActivity, private val box: LinearL
         setPadding(0, dp(6), 0, dp(2))
     }
 
-    private fun button(label: String, onClick: () -> Unit): Button = Button(act).apply {
+    private fun button(label: String, onClick: () -> Unit): Button = MaterialButton(act).apply {
         text = label
         isAllCaps = false
         setOnClickListener { onClick() }

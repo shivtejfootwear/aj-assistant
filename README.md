@@ -50,5 +50,10 @@
 - **Cloud backup:** Supabase login; सीखी बातें, बातचीत, settings cloud में; reinstall पर login करते ही वापस; रोज़ की अलग copy (180 दिन)।
 - Supabase setup: `supabase/aj_setup.sql` SQL Editor में Run करें। Project URL और anon key GitHub secrets `AJ_SUPABASE_URL`, `AJ_SUPABASE_ANON_KEY` में डालें (या app के अंदर)।
 
+## Version 3 में नया
+- **नया futuristic dashboard:** चलता-फिरता robot orb, glass cards, आज का हाल tiles, quick buttons, chat bubbles, 3 tabs (होम / सिखाओ / Settings), नया robot logo।
+- **Groq तेज़ दिमाग:** internet search वाला free AI (groq/compound), उसकी limit पर Gemini backup।
+- **सुधार:** Gemini आवाज़ अब निर्देश नहीं बोलती; search की दिक्कत पर बिना search के दोबारा कोशिश; आवाज़ streaming से चलती है (खरखराहट कम)।
+
 ## आगे (Phase 3 और बाद)
 Gemini AI दिमाग (free) · WhatsApp/Instagram मैसेज पढ़ना और reply · Emergency (112 auto call + location SMS) · Laptop से file · Fingerprint lock · Tasks/reminders

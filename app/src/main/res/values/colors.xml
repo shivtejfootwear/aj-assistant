@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#0A0F1C</color>
-    <color name="card">#121A2E</color>
-    <color name="card_stroke">#1E2D4D</color>
+    <!-- AJ: futuristic dark HUD palette -->
+    <color name="bg">#04060C</color>
+    <color name="bg2">#081022</color>
+    <color name="card">#D90C1528</color>
+    <color name="card_stroke">#3329D3FF</color>
     <color name="cyan">#29D3FF</color>
     <color name="cyan_dim">#1B7FA0</color>
-    <color name="text">#E8F1FF</color>
-    <color name="text_dim">#8FA3C4</color>
+    <color name="cyan_soft">#1A29D3FF</color>
+    <color name="violet">#8B6CFF</color>
+    <color name="violet_soft">#268B6CFF</color>
+    <color name="mint">#3DF5C4</color>
+    <color name="text">#EAF4FF</color>
+    <color name="text_dim">#7F93B5</color>
     <color name="ok">#3DDC97</color>
-    <color name="bad">#FF6B6B</color>
-    <color name="ic_bg">#0A0F1C</color>
+    <color name="bad">#FF5C7A</color>
+    <color name="ic_bg">#04060C</color>
 </resources>

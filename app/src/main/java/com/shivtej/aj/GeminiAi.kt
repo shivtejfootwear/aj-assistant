@@ -37,47 +37,56 @@ object GeminiAi {
 
     // ======================= सवाल-जवाब =======================
 
-    /** हमेशा एक बोलने लायक जवाब लौटाता है (गलती हो तो उसका संदेश) */
-    fun ask(ctx: Context, question: String): String {
+    data class Res(val ok: Boolean, val text: String)
+
+    /**
+     * जवाब या गलती का संदेश।
+     * पहले Google search के साथ; search वाला हिस्सा free tier में बहुत कम मिलता है,
+     * इसलिए उसमें error आए तो उसी model से बिना search के दोबारा पूछते हैं (पहले यही गलती थी)।
+     */
+    fun ask(ctx: Context, question: String): Res {
         val store = Store(ctx)
         val key = store.geminiKey
-        if (key.isBlank()) return "यह सवाल internet से पूछना होगा। AJ app में ‘AI दिमाग’ वाले हिस्से में free Gemini key डालिए।"
+        if (key.isBlank()) return Res(false, "Gemini key नहीं लगी है।")
 
         val models = orderedModels(store, "chat")
-        var lastError = "जवाब नहीं मिला"
-        for (model in models.take(4)) {
+        var lastError = "Gemini से जवाब नहीं मिला।"
+        var sawLimit = false
+        for (model in models.take(6)) {
             for (withSearch in listOf(true, false)) {
                 val res = try {
                     Http.request(
                         "POST", "$BASE/models/$model:generateContent",
                         mapOf("x-goog-api-key" to key),
                         chatBody(question, withSearch).toString(),
-                        readTimeoutMs = 45000
+                        readTimeoutMs = 30000
                     )
                 } catch (e: Exception) {
-                    return "Internet नहीं मिल रहा, इसलिए यह जवाब नहीं दे पाया।"
+                    return Res(false, "Internet नहीं मिल रहा, इसलिए यह जवाब नहीं दे पाया।")
                 }
-                when {
-                    res.ok -> {
-                        val text = clean(extractText(res.body))
-                        if (text.isNotBlank()) {
-                            store.setCache("chat_ok", model)
-                            remember(question, text)
-                            return text
-                        }
-                        lastError = "जवाब खाली आया"
-                        break
+                if (res.ok) {
+                    val text = TextUtil.cleanForSpeech(extractText(res.body))
+                    if (text.isNotBlank()) {
+                        store.setCache("chat_ok", model)
+                        remember(question, text)
+                        return Res(true, text)
                     }
-                    res.code == 401 || res.code == 403 && res.body.contains("API_KEY", ignoreCase = true) ->
-                        return "Gemini key सही नहीं लग रही। AJ app में key फिर से डालिए।"
-                    res.code == 400 && withSearch -> continue // search के बिना कोशिश
-                    res.code == 429 -> { lastError = "आज की free limit पूरी हो गई, कल फिर से चलेगा।"; break }
-                    else -> { lastError = "Gemini से गड़बड़ (code ${res.code})"; break }
+                    if (withSearch) continue
+                    break
                 }
+                if (res.code == 401 || (res.code == 403 && res.body.contains("API_KEY", ignoreCase = true))) {
+                    return Res(false, "Gemini key सही नहीं लग रही। AJ app में key फिर से डालिए।")
+                }
+                // search वाले हिस्से की दिक्कत → बिना search के कोशिश
+                if (withSearch && (res.code == 400 || res.code == 403 || res.code == 429)) continue
+                if (res.code == 429) sawLimit = true
+                lastError = "Gemini से गड़बड़ (code ${res.code})।"
+                break // अगला model
             }
         }
         if (store.getCache("chat_ok").isNotBlank()) store.setCache("chat_ok", "")
-        return lastError
+        if (sawLimit) lastError = "Gemini की free limit अभी भरी हुई है, थोड़ी देर बाद फिर कोशिश करूँगा।"
+        return Res(false, lastError)
     }
 
     fun resetChat() = synchronized(chat) { chat.clear() }
@@ -127,16 +136,6 @@ object GeminiAi {
         return sb.toString()
     }
 
-    /** आवाज़ में सुनाने लायक साफ़ text */
-    private fun clean(s: String): String = s
-        .replace(Regex("\\[[0-9, ]+]"), "")           // [1] जैसे निशान
-        .replace(Regex("\\[([^]]+)]\\([^)]+\\)"), "$1")  // markdown link
-        .replace(Regex("https?://\\S+"), "")
-        .replace(Regex("[*#_`>|]"), "")
-        .replace(Regex("\\s+"), " ")
-        .trim()
-        .take(700)
-
     // ======================= असली आवाज़ (TTS) =======================
 
     /** text → (PCM आवाज़, sample rate)। न बने तो null (तब फ़ोन वाली आवाज़ चलेगी) */
@@ -150,7 +149,8 @@ object GeminiAi {
                 "contents", JSONArray().put(
                     JSONObject().put(
                         "parts", JSONArray().put(
-                            JSONObject().put("text", "Say this in a soft, warm, calm and friendly voice: $text")
+                            // सिर्फ जवाब भेजते हैं; पहले यहाँ अंग्रेज़ी निर्देश जाता था जिसे Gemini बोल देता था
+                            JSONObject().put("text", text)
                         )
                     )
                 )
@@ -199,9 +199,18 @@ object GeminiAi {
     private fun orderedModels(store: Store, kind: String): List<String> {
         val out = LinkedHashSet<String>()
         store.getCache("${kind}_ok").takeIf { it.isNotBlank() }?.let { out.add(it) }
-        out.addAll(listModels(store, kind))
-        if (kind == "chat") out.addAll(listOf("gemini-flash-latest", "gemini-flash-lite-latest"))
-        else out.addAll(listOf("gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"))
+        if (kind == "chat") {
+            // free tier में सबसे ज़्यादा मिलने वाले हल्के models पहले
+            val listed = listModels(store, kind)
+            out.addAll(listed.filter { it.contains("lite") })
+            out.add("gemini-flash-lite-latest")
+            out.add("gemini-flash-latest")
+            out.addAll(listed)
+        } else {
+            out.add("gemini-3.1-flash-tts-preview")
+            out.addAll(listModels(store, kind))
+            out.add("gemini-2.5-flash-preview-tts")
+        }
         return out.toList()
     }
 

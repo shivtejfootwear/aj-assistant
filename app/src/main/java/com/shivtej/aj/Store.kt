@@ -72,6 +72,9 @@ class Store(context: Context) {
     var geminiKey: String
         get() = prefs.getString("s_gemini_key", "") ?: ""
         set(value) = setSynced { putString("s_gemini_key", value.trim()) }
+    var groqKey: String
+        get() = prefs.getString("s_groq_key", "") ?: ""
+        set(value) = setSynced { putString("s_groq_key", value.trim()) }
     var voiceName: String
         get() = prefs.getString("s_voice", "") ?: ""
         set(value) = setSynced { putString("s_voice", value) }
@@ -210,6 +213,7 @@ class Store(context: Context) {
                 "settings", JSONObject()
                     .put("updated", prefs.getLong("s_updated", 0))
                     .put("gemini_key", geminiKey)
+                    .put("groq_key", groqKey)
                     .put("voice", voiceName)
                     .put("pitch", pitch.toDouble())
                     .put("rate", rate.toDouble())
@@ -253,6 +257,7 @@ class Store(context: Context) {
             if (s != null && s.optLong("updated", 0) > prefs.getLong("s_updated", 0)) {
                 prefs.edit()
                     .putString("s_gemini_key", s.optString("gemini_key", ""))
+                    .putString("s_groq_key", s.optString("groq_key", ""))
                     .putString("s_voice", s.optString("voice", ""))
                     .putFloat("s_pitch", s.optDouble("pitch", 1.0).toFloat())
                     .putFloat("s_rate", s.optDouble("rate", 0.95).toFloat())
