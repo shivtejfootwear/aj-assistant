@@ -18,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -162,23 +163,45 @@ class SettingsCards(private val act: AppCompatActivity, private val box: LinearL
                 button("📍 location") { cmd(d, "locate") },
                 button("↻ status") { cmd(d, "status") }
             ))
+            box.addView(row(
+                button("📷 पीछे फ़ोटो") { cmd(d, "photo_back") },
+                button("🤳 आगे फ़ोटो") { cmd(d, "photo_front") },
+                button("🎙 रिकॉर्ड 15s") { cmd(d, "record", JSONObject().put("sec", 15)) }
+            ))
+            box.addView(button("📥 नया फ़ोटो/रिकॉर्डिंग खोलो") { openMedia(d) })
+            box.addView(
+                note("फ़ोटो/रिकॉर्डिंग माँगने पर उस फ़ोन पर notification, आवाज़ और हरा निशान दिखता है। थोड़ी देर बाद यह बटन दबाकर देखें।")
+            )
         }
         return box
     }
 
-    private fun cmd(d: DeviceSync.Device, type: String) {
+    private fun cmd(d: DeviceSync.Device, type: String, args: JSONObject? = null) {
         toast("भेज रहा हूँ...")
         Thread {
-            val err = DeviceSync.sendCommand(act, d.id, type)
+            val err = DeviceSync.sendCommand(act, d.id, type, args)
             act.runOnUiThread {
                 if (err != null) toast(err)
                 else toast(
                     when (type) {
                         "ring" -> "${d.name} बजने लगेगा (जब वह फ़ोन online हो)"
                         "locate" -> "${d.name} से location माँगी, थोड़ी देर में ‘ताज़ा’ दबाएँ"
+                        "photo_back", "photo_front" -> "${d.name} से फ़ोटो माँगी। कुछ सेकंड बाद ‘नया फ़ोटो खोलो’ दबाएँ"
+                        "record" -> "${d.name} से रिकॉर्डिंग माँगी। ~20 सेकंड बाद ‘नया रिकॉर्डिंग खोलो’ दबाएँ"
                         else -> "${d.name} से ताज़ा जानकारी माँगी, थोड़ी देर में ‘ताज़ा’ दबाएँ"
                     }
                 )
+            }
+        }.start()
+    }
+
+    private fun openMedia(d: DeviceSync.Device) {
+        toast("media ढूँढ रहा हूँ...")
+        Thread {
+            val url = DeviceSync.latestMedia(act, d.id)
+            act.runOnUiThread {
+                if (url == null) toast("अभी कोई media नहीं मिला। थोड़ा और रुककर फिर दबाएँ।")
+                else openUrl(url)
             }
         }.start()
     }

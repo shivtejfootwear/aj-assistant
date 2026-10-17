@@ -60,7 +60,7 @@
 - किसी फ़ोन को **बजाओ** (ढूँढने के लिए ज़ोर से बजेगा), **location** मँगाएँ, या **status** ताज़ा करें।
 - हर काम सामने वाले फ़ोन पर भी दिखता है (AJ का notification/आवाज़), कुछ छुपा नहीं। सिर्फ अपने फ़ोनों के लिए।
 - Supabase: `supabase/aj_devices_setup.sql` एक बार Run करें। नियंत्रित फ़ोन पर AJ चालू/login रहे तभी वह जुड़ा रहता है।
-- (अगले update में: camera/recording — साफ़ indicator के साथ।)
+- **Camera/recording (v5):** admin से किसी अपने फ़ोन का पीछे/आगे का फ़ोटो या आवाज़ रिकॉर्डिंग माँगें। उस फ़ोन पर notification, shutter/beep आवाज़ और Android का हरा निशान दिखता है (छुपा नहीं)। Media आपके private Supabase storage (bucket aj-media) में जाता है; admin signed link से खोलता है।
 
 ## आगे (Phase 3 और बाद)
 Gemini AI दिमाग (free) · WhatsApp/Instagram मैसेज पढ़ना और reply · Emergency (112 auto call + location SMS) · Laptop से file · Fingerprint lock · Tasks/reminders

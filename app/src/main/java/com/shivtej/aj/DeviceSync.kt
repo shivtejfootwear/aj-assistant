@@ -97,17 +97,17 @@ object DeviceSync {
             for (i in 0 until arr.length()) {
                 val c = arr.getJSONObject(i)
                 val id = c.getLong("id")
-                when (c.optString("type")) {
-                    "ring" -> ring(ctx)
-                    "locate" -> located = true
-                    "status" -> { /* नीचे heartbeat */ }
+                val type = c.optString("type")
+                val args = c.optJSONObject("args") ?: JSONObject()
+                when (type) {
+                    "ring" -> { ring(ctx); markDone(ctx, id, JSONObject().put("ok", true)) }
+                    "locate" -> { located = true; markDone(ctx, id, JSONObject().put("ok", true)) }
+                    "status" -> markDone(ctx, id, JSONObject().put("ok", true))
+                    // camera/recording: CaptureService करता है और खुद result लिखता है (notification + आवाज़ के साथ)
+                    "photo_back", "photo_front", "record" ->
+                        CaptureService.start(ctx, id, type, args.optInt("sec", 15))
+                    else -> markDone(ctx, id, JSONObject().put("ok", false))
                 }
-                // काम पूरा निशान
-                Http.request(
-                    "PATCH", "${store.cloudUrl}/rest/v1/aj_commands?id=eq.$id",
-                    headers + mapOf("Prefer" to "return=minimal"),
-                    JSONObject().put("state", "done").put("result", JSONObject().put("ok", true)).toString()
-                )
             }
             if (located) AjBus.setStatus("📍 दूसरे फ़ोन से location माँगी गई")
             pushHeartbeat(ctx)
@@ -182,24 +182,59 @@ object DeviceSync {
         }
     }
 
+    /** command पूरा होने का निशान (CaptureService भी इसे इस्तेमाल करता है) */
+    fun markDone(ctx: Context, id: Long, result: JSONObject) {
+        val store = Store(ctx)
+        val headers = CloudSync.authHeadersEnsured(ctx) ?: return
+        try {
+            Http.request(
+                "PATCH", "${store.cloudUrl}/rest/v1/aj_commands?id=eq.$id",
+                headers + mapOf("Prefer" to "return=minimal"),
+                JSONObject().put("state", "done").put("result", result).toString()
+            )
+        } catch (_: Exception) {
+        }
+    }
+
     /** दूसरे फ़ोन को काम भेजो */
-    fun sendCommand(ctx: Context, targetDeviceId: String, type: String): String? {
+    fun sendCommand(ctx: Context, targetDeviceId: String, type: String, args: JSONObject? = null): String? {
         val store = Store(ctx)
         if (!store.loggedIn) return "पहले Cloud login कीजिए"
         val headers = CloudSync.authHeadersEnsured(ctx) ?: return "Login नहीं है"
         return try {
+            val row = JSONObject()
+                .put("user_id", store.userId)
+                .put("target", targetDeviceId)
+                .put("type", type)
+            if (args != null) row.put("args", args)
             val res = Http.request(
                 "POST", "${store.cloudUrl}/rest/v1/aj_commands",
                 headers + mapOf("Prefer" to "return=minimal"),
-                JSONObject()
-                    .put("user_id", store.userId)
-                    .put("target", targetDeviceId)
-                    .put("type", type)
-                    .toString()
+                row.toString()
             )
             if (res.ok) null else "भेज नहीं पाया (code ${res.code})"
         } catch (e: Exception) {
             "Internet नहीं मिला"
+        }
+    }
+
+    /** उस फ़ोन का सबसे नया फ़ोटो/रिकॉर्डिंग link (signed) या null */
+    fun latestMedia(ctx: Context, targetDeviceId: String): String? {
+        val store = Store(ctx)
+        val headers = CloudSync.authHeadersEnsured(ctx) ?: return null
+        return try {
+            val res = Http.request(
+                "GET",
+                "${store.cloudUrl}/rest/v1/aj_commands?select=result&target=eq.$targetDeviceId&state=eq.done&type=in.(photo_back,photo_front,record)&order=id.desc&limit=1",
+                headers
+            )
+            if (!res.ok) return null
+            val arr = JSONArray(res.body)
+            if (arr.length() == 0) return null
+            val path = arr.getJSONObject(0).optJSONObject("result")?.optString("path").orEmpty()
+            if (path.isBlank()) null else MediaUpload.sign(ctx, path)
+        } catch (e: Exception) {
+            null
         }
     }
 

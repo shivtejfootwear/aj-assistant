@@ -51,3 +51,14 @@ end $$;
 drop trigger if exists aj_prune_commands_trg on public.aj_commands;
 create trigger aj_prune_commands_trg after insert on public.aj_commands
   for each row execute function public.aj_prune_commands();
+
+-- 4) फ़ोटो/रिकॉर्डिंग के लिए private storage (bucket: aj-media)
+insert into storage.buckets (id, name, public)
+values ('aj-media', 'aj-media', false)
+on conflict (id) do nothing;
+
+drop policy if exists "aj media own" on storage.objects;
+create policy "aj media own" on storage.objects
+  for all to authenticated
+  using (bucket_id = 'aj-media' and (storage.foldername(name))[1] = auth.uid()::text)
+  with check (bucket_id = 'aj-media' and (storage.foldername(name))[1] = auth.uid()::text);

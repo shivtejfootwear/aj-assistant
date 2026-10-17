@@ -572,6 +572,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         runtimeRow("Contacts (नाम से कॉल/मैसेज)", Manifest.permission.READ_CONTACTS)
         runtimeRow("कॉल लगाना", Manifest.permission.CALL_PHONE)
         runtimeRow("Location (फ़ोन कहाँ है)", Manifest.permission.ACCESS_FINE_LOCATION)
+        runtimeRow("Camera (दूर से फ़ोटो)", Manifest.permission.CAMERA)
         if (Build.VERSION.SDK_INT >= 33) runtimeRow("Notification दिखाना", Manifest.permission.POST_NOTIFICATIONS)
 
         addRow("सारी फाइलें (आज के downloads)", PhoneInfo.canReadAllFiles(this)) {
