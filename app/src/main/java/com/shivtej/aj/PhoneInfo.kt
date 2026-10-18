@@ -172,35 +172,4 @@ object PhoneInfo {
             null
         }
     }
-
-    /** बोले गए नाम से contact ढूँढना: (नाम, नंबर) */
-    fun findContact(ctx: Context, spokenName: String): Pair<String, String>? {
-        if (!has(ctx, Manifest.permission.READ_CONTACTS)) return null
-        val names = ArrayList<String>()
-        val numbers = ArrayList<String>()
-        val seen = HashSet<String>()
-        try {
-            ctx.contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                arrayOf(
-                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                    ContactsContract.CommonDataKinds.Phone.NUMBER
-                ),
-                null, null, null
-            )?.use { c ->
-                while (c.moveToNext()) {
-                    val name = c.getString(0) ?: continue
-                    val number = c.getString(1) ?: continue
-                    if (seen.add(name)) {
-                        names.add(name)
-                        numbers.add(number)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            return null
-        }
-        val index = TextUtil.bestMatch(spokenName, names)
-        return if (index >= 0) names[index] to numbers[index] else null
-    }
 }

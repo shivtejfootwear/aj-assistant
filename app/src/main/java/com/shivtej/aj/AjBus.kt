@@ -3,11 +3,10 @@ package com.shivtej.aj
 import android.os.Handler
 import android.os.Looper
 
-/** Service और screen के बीच छोटा सा संदेश-वाहक: AJ क्या कर रहा है, यह screen तक पहुँचाता है। */
+/** Service और screen के बीच छोटा संदेश-वाहक: अभी क्या हो रहा है, वह screen तक पहुँचाता है। */
 object AjBus {
     interface Listener {
         fun onStatus(status: String)
-        fun onHistoryChanged()
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -33,7 +32,6 @@ object AjBus {
         main.post { listeners.toList().forEach { it.onStatus(newStatus) } }
     }
 
-    fun historyChanged() {
-        main.post { listeners.toList().forEach { it.onHistoryChanged() } }
-    }
+    /** पुराने code की जगह (अब कुछ नहीं करता) */
+    fun historyChanged() {}
 }
