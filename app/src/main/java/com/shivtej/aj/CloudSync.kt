@@ -16,39 +16,39 @@ object CloudSync {
 
     fun signIn(ctx: Context, email: String, password: String): String? {
         val store = Store(ctx)
-        if (!isConfigured(store)) return "पहले Supabase URL और anon key डालिए"
+        if (!isConfigured(store)) return "Enter the Supabase URL and anon key first"
         val res = try {
             Http.request(
                 "POST", "${store.cloudUrl}/auth/v1/token?grant_type=password", baseHeaders(store),
                 JSONObject().put("email", email.trim()).put("password", password).toString()
             )
         } catch (e: Exception) {
-            return "Internet नहीं मिला: ${e.message ?: ""}"
+            return "No internet: ${e.message ?: ""}"
         }
-        if (!res.ok) return "Login नहीं हुआ: ${errorText(res)}"
+        if (!res.ok) return "Login failed: ${errorText(res)}"
         saveSession(store, JSONObject(res.body))
         return null
     }
 
     fun signUp(ctx: Context, email: String, password: String): String? {
         val store = Store(ctx)
-        if (!isConfigured(store)) return "पहले Supabase URL और anon key डालिए"
-        if (password.length < 6) return "Password कम से कम 6 अक्षर का रखें"
+        if (!isConfigured(store)) return "Enter the Supabase URL and anon key first"
+        if (password.length < 6) return "Password must be at least 6 characters"
         val res = try {
             Http.request(
                 "POST", "${store.cloudUrl}/auth/v1/signup", baseHeaders(store),
                 JSONObject().put("email", email.trim()).put("password", password).toString()
             )
         } catch (e: Exception) {
-            return "Internet नहीं मिला: ${e.message ?: ""}"
+            return "No internet: ${e.message ?: ""}"
         }
-        if (!res.ok) return "Account नहीं बना: ${errorText(res)}"
+        if (!res.ok) return "Account not created: ${errorText(res)}"
         val json = JSONObject(res.body)
         return if (json.has("access_token")) {
             saveSession(store, json)
             null
         } else {
-            "Account बन गया। Email में आया link दबाइए, फिर यहाँ Login कीजिए।"
+            "Account created. Tap the link in your email, then Login here."
         }
     }
 
@@ -74,7 +74,7 @@ object CloudSync {
             JSONObject().put("refresh_token", store.refreshToken).toString()
         )
         if (!res.ok) {
-            lastMessage = "Login पुराना हो गया, फिर से login कीजिए"
+            lastMessage = "Session expired, please login again"
             if (res.code == 400 || res.code == 401) store.clearSession()
             return false
         }

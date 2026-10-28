@@ -72,7 +72,7 @@ class CaptureService : Service() {
 
         createChannel()
         val isPhoto = type.startsWith("photo")
-        goForeground(isPhoto, if (isPhoto) "AJ दूसरे फ़ोन के कहने पर फ़ोटो ले रहा है" else "AJ दूसरे फ़ोन के कहने पर आवाज़ record कर रहा है")
+        goForeground(isPhoto, if (isPhoto) "Taking a photo at another phone's request" else "Recording audio at another phone's request")
 
         if (isPhoto) doPhoto(id, type == "photo_front") else doRecord(id, sec)
         return START_NOT_STICKY
@@ -81,7 +81,7 @@ class CaptureService : Service() {
     // ---------------- फ़ोटो ----------------
 
     private fun doPhoto(id: Long, front: Boolean) {
-        AjBus.setStatus("📸 दूसरे फ़ोन के कहने पर फ़ोटो ली जा रही है")
+        AjBus.setStatus("📸 Taking a photo at another phone's request")
         shutterSound()
         CameraCapture.capture(this, front) { bytes ->
             worker.execute {
@@ -93,7 +93,7 @@ class CaptureService : Service() {
                         ok = true
                     }
                 }
-                if (!ok) done(id, JSONObject().put("ok", false).put("error", "फ़ोटो नहीं बनी"))
+                if (!ok) done(id, JSONObject().put("ok", false).put("error", "Photo failed"))
                 finish()
             }
         }
@@ -102,7 +102,7 @@ class CaptureService : Service() {
     // ---------------- रिकॉर्डिंग ----------------
 
     private fun doRecord(id: Long, sec: Int) {
-        AjBus.setStatus("🎙 दूसरे फ़ोन के कहने पर आवाज़ record हो रही है")
+        AjBus.setStatus("🎙 Recording audio at another phone's request")
         beep()
         val file = File(cacheDir, "rec_${System.currentTimeMillis()}.m4a")
         val rec = try {
@@ -117,7 +117,7 @@ class CaptureService : Service() {
                 start()
             }
         } catch (e: Exception) {
-            done(id, JSONObject().put("ok", false).put("error", "रिकॉर्डिंग शुरू नहीं हुई"))
+            done(id, JSONObject().put("ok", false).put("error", "Recording didn't start"))
             finish()
             return
         }
@@ -152,7 +152,7 @@ class CaptureService : Service() {
                     file.delete()
                 } catch (_: Exception) {
                 }
-                if (!ok) done(id, JSONObject().put("ok", false).put("error", "रिकॉर्डिंग सेव नहीं हुई"))
+                if (!ok) done(id, JSONObject().put("ok", false).put("error", "Recording not saved"))
                 finish()
             }
         }, sec * 1000L)
@@ -183,11 +183,11 @@ class CaptureService : Service() {
         // अगर किसी वजह से result नहीं लिखा गया, तो command को failed कर दो (वरना बार-बार कोशिश होगी)
         if (!donePosted && cmdId > 0) {
             val id = cmdId
-            worker.execute { DeviceSync.markDone(this, id, JSONObject().put("ok", false).put("error", "capture नहीं हो पाया")) }
+            worker.execute { DeviceSync.markDone(this, id, JSONObject().put("ok", false).put("error", "Capture failed")) }
             donePosted = true
         }
         main.post {
-            AjBus.setStatus("✅ AJ तैयार है")
+            AjBus.setStatus("✅ Ready")
             try {
                 androidx.core.app.ServiceCompat.stopForeground(this, androidx.core.app.ServiceCompat.STOP_FOREGROUND_REMOVE)
             } catch (_: Exception) {
@@ -209,8 +209,8 @@ class CaptureService : Service() {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
-            val ch = NotificationChannel(CHANNEL, "AJ camera/रिकॉर्डिंग", NotificationManager.IMPORTANCE_HIGH)
-            ch.description = "जब AJ दूसरे फ़ोन के कहने पर camera या रिकॉर्डिंग चलाए"
+            val ch = NotificationChannel(CHANNEL, "Camera/recording", NotificationManager.IMPORTANCE_HIGH)
+            ch.description = "When camera or recording runs at another phone's request"
             nm.createNotificationChannel(ch)
         }
     }

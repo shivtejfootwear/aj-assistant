@@ -36,7 +36,7 @@ object DeviceSync {
         val store = Store(ctx)
         if (!store.loggedIn) return false
         val headers = CloudSync.authHeadersEnsured(ctx) ?: return false
-        val name = store.deviceName.ifBlank { Build.MODEL ?: "मेरा फ़ोन" }
+        val name = store.deviceName.ifBlank { Build.MODEL ?: "My Phone" }
         val row = JSONObject()
             .put("device_id", store.deviceId)
             .put("user_id", store.userId)
@@ -109,7 +109,7 @@ object DeviceSync {
                     else -> markDone(ctx, id, JSONObject().put("ok", false))
                 }
             }
-            if (located) AjBus.setStatus("📍 दूसरे फ़ोन से location माँगी गई")
+            if (located) AjBus.setStatus("📍 Location requested by another phone")
             pushHeartbeat(ctx)
         } catch (_: Exception) {
         }
@@ -117,7 +117,7 @@ object DeviceSync {
 
     /** फ़ोन ढूँढने के लिए ज़ोर से बजाना + हिलाना (सामने वाले को साफ़ पता चले) */
     private fun ring(ctx: Context) {
-        AjBus.setStatus("🔔 इस फ़ोन को दूसरे फ़ोन से ढूँढा जा रहा है")
+        AjBus.setStatus("🔔 This phone is being located by another phone")
         try {
             val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             am.setStreamVolume(AudioManager.STREAM_ALARM, am.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0)
@@ -169,7 +169,7 @@ object DeviceSync {
                 out.add(
                     Device(
                         id = id,
-                        name = o.optString("name").ifBlank { "फ़ोन" },
+                        name = o.optString("name").ifBlank { "Phone" },
                         status = o.optJSONObject("status") ?: JSONObject(),
                         lastSeenMinAgo = ageMin,
                         isThis = id == store.deviceId
@@ -199,8 +199,8 @@ object DeviceSync {
     /** दूसरे फ़ोन को काम भेजो */
     fun sendCommand(ctx: Context, targetDeviceId: String, type: String, args: JSONObject? = null): String? {
         val store = Store(ctx)
-        if (!store.loggedIn) return "पहले Cloud login कीजिए"
-        val headers = CloudSync.authHeadersEnsured(ctx) ?: return "Login नहीं है"
+        if (!store.loggedIn) return "Please Cloud login first"
+        val headers = CloudSync.authHeadersEnsured(ctx) ?: return "Not logged in"
         return try {
             val row = JSONObject()
                 .put("user_id", store.userId)
@@ -212,9 +212,9 @@ object DeviceSync {
                 headers + mapOf("Prefer" to "return=minimal"),
                 row.toString()
             )
-            if (res.ok) null else "भेज नहीं पाया (code ${res.code})"
+            if (res.ok) null else "Couldn't send (code ${res.code})"
         } catch (e: Exception) {
-            "Internet नहीं मिला"
+            "No internet"
         }
     }
 

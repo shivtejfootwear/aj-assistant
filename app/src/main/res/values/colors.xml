@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- AJ: futuristic dark HUD palette -->
+    <!-- My Devices: green HUD palette on dark -->
     <color name="bg">#04060C</color>
     <color name="bg2">#081022</color>
-    <color name="card">#D90C1528</color>
-    <color name="card_stroke">#3329D3FF</color>
-    <color name="cyan">#29D3FF</color>
-    <color name="cyan_dim">#1B7FA0</color>
-    <color name="cyan_soft">#1A29D3FF</color>
-    <color name="violet">#8B6CFF</color>
-    <color name="violet_soft">#268B6CFF</color>
+    <color name="card">#D90A1C14</color>
+    <color name="card_stroke">#332FE38A</color>
+    <color name="cyan">#2FE38A</color>
+    <color name="cyan_dim">#1B8F5C</color>
+    <color name="cyan_soft">#1A2FE38A</color>
+    <color name="violet">#3DF5C4</color>
+    <color name="violet_soft">#263DF5C4</color>
     <color name="mint">#3DF5C4</color>
     <color name="text">#EAF4FF</color>
     <color name="text_dim">#7F93B5</color>

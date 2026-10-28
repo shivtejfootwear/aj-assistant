@@ -13,7 +13,7 @@ object AjBus {
     private val listeners = LinkedHashSet<Listener>()
 
     @Volatile
-    var status: String = "AJ तैयार है"
+    var status: String = "Ready"
         private set
 
     fun add(listener: Listener) {

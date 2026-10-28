@@ -76,6 +76,29 @@
                 android:textColor="@color/mint"
                 android:textSize="11sp" />
         </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/settingsDot"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="Settings">
+
+            <View
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_ring" />
+
+            <View
+                android:layout_width="8dp"
+                android:layout_height="8dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_dot"
+                android:backgroundTint="@color/cyan" />
+        </FrameLayout>
     </LinearLayout>
 
     <FrameLayout
@@ -106,7 +129,7 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="📱 मेरे फ़ोन"
+                        android:text="📱 My Phone"
                         android:textColor="@color/text"
                         android:textSize="22sp"
                         android:textStyle="bold" />
@@ -122,7 +145,7 @@
                         android:paddingTop="6dp"
                         android:paddingEnd="14dp"
                         android:paddingBottom="6dp"
-                        android:text="↻ ताज़ा"
+                        android:text="↻ Refresh"
                         android:textColor="@color/cyan"
                         android:textSize="13sp" />
                 </LinearLayout>
@@ -151,9 +174,12 @@
                 android:padding="16dp">
 
                 <TextView
+                    android:id="@+id/settingsBack"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="⚙ Settings"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:text="←  Settings"
                     android:textColor="@color/text"
                     android:textSize="22sp"
                     android:textStyle="bold" />
@@ -233,37 +259,4 @@
             </LinearLayout>
         </ScrollView>
     </FrameLayout>
-
-    <!-- tabs -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="64dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="10dp"
-        android:background="@drawable/bg_nav"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:padding="6dp">
-
-        <TextView
-            android:id="@+id/navDevices"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="📱  मेरे फ़ोन"
-            android:textColor="@color/text"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/navSettings"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="⚙  Settings"
-            android:textColor="@color/text_dim"
-            android:textSize="14sp" />
-    </LinearLayout>
 </LinearLayout>

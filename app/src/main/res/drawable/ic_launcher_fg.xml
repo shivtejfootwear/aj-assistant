@@ -5,17 +5,17 @@
     <group android:scaleX="0.64" android:scaleY="0.64" android:pivotX="54" android:pivotY="54">
         <!-- phone body -->
         <path android:pathData="M36,14 H72 A10,10 0 0 1 82,24 V84 A10,10 0 0 1 72,94 H36 A10,10 0 0 1 26,84 V24 A10,10 0 0 1 36,14 Z"
-            android:fillColor="#0E1A30" android:strokeColor="#29D3FF" android:strokeWidth="4" />
+            android:fillColor="#0A1F16" android:strokeColor="#2FE38A" android:strokeWidth="4" />
         <!-- speaker -->
-        <path android:pathData="M48,22 H60" android:strokeColor="#29D3FF" android:strokeWidth="3" android:strokeLineCap="round" />
+        <path android:pathData="M48,22 H60" android:strokeColor="#2FE38A" android:strokeWidth="3" android:strokeLineCap="round" />
         <!-- shield -->
         <path android:pathData="M54,34 L70,39 V51 C70,61 63,67 54,71 C45,67 38,61 38,51 V39 Z"
-            android:fillColor="#29D3FF" />
+            android:fillColor="#2FE38A" />
         <!-- check -->
         <path android:pathData="M46.5,52 L51.5,57 L62,46.5"
             android:strokeColor="#04060C" android:strokeWidth="3.5"
             android:strokeLineCap="round" android:strokeLineJoin="round" />
         <!-- home bar -->
-        <path android:pathData="M48,86 H60" android:strokeColor="#1B7FA0" android:strokeWidth="3" android:strokeLineCap="round" />
+        <path android:pathData="M48,86 H60" android:strokeColor="#1B8F5C" android:strokeWidth="3" android:strokeLineCap="round" />
     </group>
 </vector>

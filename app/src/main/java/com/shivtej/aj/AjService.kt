@@ -85,7 +85,7 @@ class AjService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
             val ch = NotificationChannel(CHANNEL, "AJ link", NotificationManager.IMPORTANCE_LOW)
-            ch.description = "यह फ़ोन आपके admin से जुड़ा है"
+            ch.description = "This phone is linked to your admin"
             nm.createNotificationChannel(ch)
         }
     }
@@ -99,11 +99,11 @@ class AjService : Service() {
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("AJ")
-            .setContentText("यह फ़ोन आपके admin से जुड़ा है")
+            .setContentText("This phone is linked to your admin")
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .addAction(0, "बंद करो", stop)
+            .addAction(0, "Stop", stop)
             .build()
     }
 

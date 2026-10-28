@@ -38,7 +38,6 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
     private lateinit var devicesBox: LinearLayout
     private lateinit var lockBox: LinearLayout
     private lateinit var pages: List<View>
-    private lateinit var tabs: List<TextView>
 
     private var devices: List<DeviceSync.Device>? = null
     private var settingsUnlocked = false
@@ -56,13 +55,11 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         lockBox = findViewById(R.id.lockBox)
 
         pages = listOf<View>(findViewById(R.id.pageDevices), findViewById(R.id.pageSettings))
-        tabs = listOf<TextView>(findViewById(R.id.navDevices), findViewById(R.id.navSettings))
-        tabs.forEachIndexed { i, tab ->
-            tab.setOnClickListener { if (i == 1) openSettingsTab() else showPage(i) }
-        }
+        findViewById<View>(R.id.settingsDot).setOnClickListener { openSettingsTab() }
+        findViewById<View>(R.id.settingsBack).setOnClickListener { showPage(0) }
         settingsUnlocked = savedInstanceState?.getBoolean("unlocked") ?: false
         val startPage = savedInstanceState?.getInt("page") ?: 0
-        showPage(if (startPage == 1 && !settingsUnlocked) 0 else startPage)
+        showPage(if (startPage == 1 && settingsUnlocked) 1 else 0)
 
         findViewById<View>(R.id.refreshButton).setOnClickListener { loadDevices() }
 
@@ -77,7 +74,11 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         outState.putBoolean("unlocked", settingsUnlocked)
     }
 
-    /** Settings tab सिर्फ सही PIN पर खुलेगा (app बंद-खोलने पर फिर से माँगेगा)। */
+    override fun onBackPressed() {
+        if (pages.getOrNull(1)?.visibility == View.VISIBLE) showPage(0) else super.onBackPressed()
+    }
+
+    /** Settings only opens on the correct PIN (asked again after closing and reopening the app). */
     private fun openSettingsTab() {
         if (settingsUnlocked) { showPage(1); return }
         val pin = EditText(this).apply {
@@ -90,22 +91,22 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             addView(pin)
         }
         AlertDialog.Builder(this)
-            .setTitle("Settings खोलने के लिए PIN डालें")
+            .setTitle("Enter PIN to open Settings")
             .setView(wrap)
-            .setPositiveButton("खोलो") { _, _ ->
+            .setPositiveButton("Open") { _, _ ->
                 if (pin.text.toString().trim() == store.settingsPin) {
                     settingsUnlocked = true
                     showPage(1)
-                } else toast("गलत PIN")
+                } else toast("Wrong PIN")
             }
-            .setNegativeButton("रहने दो", null)
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
     private fun renderLock() {
         lockBox.removeAllViews()
-        lockBox.addView(dim("Settings इसी PIN से खुलती है। app बंद करके दोबारा खोलने पर PIN फिर माँगा जाएगा।"))
-        lockBox.addView(btnWide("Settings PIN बदलो") { changePinDialog() })
+        lockBox.addView(dim("Settings opens with this PIN. Reopening the app asks for the PIN again."))
+        lockBox.addView(btnWide("Change Settings PIN") { changePinDialog() })
     }
 
     private fun changePinDialog() {
@@ -115,26 +116,26 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             setTextColor(color(R.color.text))
             setHintTextColor(color(R.color.text_dim))
         }
-        val p1 = pinField("नया PIN (कम से कम 4 अंक)")
-        val p2 = pinField("दोबारा वही PIN")
+        val p1 = pinField("New PIN (at least 4 digits)")
+        val p2 = pinField("Re-enter new PIN")
         val wrap = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), 0)
             addView(p1); addView(p2)
         }
         AlertDialog.Builder(this)
-            .setTitle("नया Settings PIN")
+            .setTitle("New Settings PIN")
             .setView(wrap)
-            .setPositiveButton("सेव करो") { _, _ ->
+            .setPositiveButton("Save") { _, _ ->
                 val a = p1.text.toString().trim()
                 val b = p2.text.toString().trim()
                 when {
-                    a.length < 4 -> toast("PIN कम से कम 4 अंक का रखें")
-                    a != b -> toast("दोनों PIN एक जैसे नहीं हैं")
-                    else -> { store.settingsPin = a; toast("PIN बदल गया ✅") }
+                    a.length < 4 -> toast("PIN must be at least 4 digits")
+                    a != b -> toast("The two PINs don't match")
+                    else -> { store.settingsPin = a; toast("PIN changed ✅") }
                 }
             }
-            .setNegativeButton("रहने दो", null)
+            .setNegativeButton("Cancel", null)
             .show()
     }
 
@@ -164,17 +165,12 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             loadDevices()
         } else {
             devicesBox.removeAllViews()
-            devicesBox.addView(dim("पहले Settings में Cloud login कीजिए, फिर यहाँ आपके फ़ोन दिखेंगे।"))
+            devicesBox.addView(dim("Cloud login in Settings first, then your phones show here."))
         }
     }
 
     private fun showPage(index: Int) {
         pages.forEachIndexed { i, p -> p.visibility = if (i == index) View.VISIBLE else View.GONE }
-        tabs.forEachIndexed { i, t ->
-            val active = i == index
-            t.setBackgroundResource(if (active) R.drawable.bg_nav_active else 0)
-            t.setTextColor(color(if (active) R.color.text else R.color.text_dim))
-        }
     }
 
     override fun onStatus(status: String) {
@@ -206,8 +202,8 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         devicesBox.removeAllViews()
         val list = devices
         when {
-            list == null -> devicesBox.addView(dim("लोड हो रहा है..."))
-            list.isEmpty() -> devicesBox.addView(dim("कोई फ़ोन नहीं मिला। हर फ़ोन पर AJ खोलकर इसी account से login कीजिए।"))
+            list == null -> devicesBox.addView(dim("Loading..."))
+            list.isEmpty() -> devicesBox.addView(dim("No phones found. Open the app on each phone and login with this same account."))
             else -> list.forEach { devicesBox.addView(deviceCard(it)) }
         }
     }
@@ -224,12 +220,12 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         val online = d.lastSeenMinAgo in 0..3
         val seen = when {
             d.lastSeenMinAgo < 0 -> ""
-            d.lastSeenMinAgo == 0L -> " • अभी online"
-            d.lastSeenMinAgo < 60 -> " • ${d.lastSeenMinAgo} मिनट पहले"
-            else -> " • ${d.lastSeenMinAgo / 60} घंटे पहले"
+            d.lastSeenMinAgo == 0L -> " • online now"
+            d.lastSeenMinAgo < 60 -> " • ${d.lastSeenMinAgo} min ago"
+            else -> " • ${d.lastSeenMinAgo / 60} hr ago"
         }
         box.addView(TextView(this).apply {
-            text = (if (online) "🟢 " else "⚪ ") + d.name + (if (d.isThis) "  (यही फ़ोन)" else "") + seen
+            text = (if (online) "🟢 " else "⚪ ") + d.name + (if (d.isThis) "  (this phone)" else "") + seen
             textSize = 17f
             setTextColor(color(R.color.cyan))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -245,7 +241,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         if (s.has("lat")) {
             val age = s.optLong("loc_age_min")
             box.addView(TextView(this).apply {
-                text = "📍 location देखें ${if (age > 0) "($age मिनट पुरानी)" else ""}"
+                text = "📍 View location ${if (age > 0) "($age min old)" else ""}"
                 textSize = 14f
                 setTextColor(color(R.color.mint))
                 setPadding(0, dp(6), 0, dp(2))
@@ -257,35 +253,35 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
 
         if (!d.isThis) {
             box.addView(row(
-                btn("🔔 बजाओ") { cmd(d, "ring") },
-                btn("📍 location") { cmd(d, "locate") },
-                btn("↻ status") { cmd(d, "status") }
+                btn("🔔 Ring") { cmd(d, "ring") },
+                btn("📍 Locate") { cmd(d, "locate") },
+                btn("↻ Status") { cmd(d, "status") }
             ))
             box.addView(row(
-                btn("📷 पीछे") { cmd(d, "photo_back") },
-                btn("🤳 आगे") { cmd(d, "photo_front") },
+                btn("📷 Back") { cmd(d, "photo_back") },
+                btn("🤳 Front") { cmd(d, "photo_front") },
                 btn("🎙 15s") { cmd(d, "record", JSONObject().put("sec", 15)) }
             ))
-            box.addView(btnWide("📥 नया फ़ोटो/रिकॉर्डिंग खोलो") { openMedia(d) })
-            box.addView(dim("फ़ोटो/रिकॉर्डिंग माँगने पर उस फ़ोन पर notification, आवाज़ और हरा निशान दिखता है। कुछ सेकंड बाद यह बटन दबाएँ।"))
+            box.addView(btnWide("📥 Open new photo/recording") { openMedia(d) })
+            box.addView(dim("When you request a photo/recording, that phone shows a notification, sound and a green dot. Tap this button after a few seconds."))
         } else {
-            box.addView(dim("यह फ़ोन दूसरे फ़ोन के admin से जुड़ा है। दूसरे फ़ोन पर इसे यहीं से चलाया जा सकता है।"))
+            box.addView(dim("This phone is linked to your admin. You can control the other phones from here."))
         }
         return box
     }
 
     private fun cmd(d: DeviceSync.Device, type: String, args: JSONObject? = null) {
-        toast("भेज रहा हूँ...")
+        toast("Sending...")
         Thread {
             val err = DeviceSync.sendCommand(this, d.id, type, args)
             runOnUiThread {
                 toast(
                     err ?: when (type) {
-                        "ring" -> "${d.name} बजने लगेगा (जब वह online हो)"
-                        "locate" -> "${d.name} से location माँगी, थोड़ी देर में ↻ दबाएँ"
-                        "photo_back", "photo_front" -> "${d.name} से फ़ोटो माँगी। कुछ सेकंड बाद ‘नया फ़ोटो खोलो’"
-                        "record" -> "${d.name} से रिकॉर्डिंग माँगी। ~20 सेकंड बाद ‘नया रिकॉर्डिंग खोलो’"
-                        else -> "${d.name} से ताज़ा जानकारी माँगी, थोड़ी देर में ↻ दबाएँ"
+                        "ring" -> "${d.name} will ring (when it is online)"
+                        "locate" -> "Requested location from ${d.name}, tap ↻ shortly"
+                        "photo_back", "photo_front" -> "Requested a photo from ${d.name}. After a few seconds tap Open new photo"
+                        "record" -> "Requested a recording from ${d.name}. After ~20 seconds tap Open new recording"
+                        else -> "Requested fresh info from ${d.name}, tap ↻ shortly"
                     }
                 )
             }
@@ -293,11 +289,11 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
     }
 
     private fun openMedia(d: DeviceSync.Device) {
-        toast("media ढूँढ रहा हूँ...")
+        toast("Finding media...")
         Thread {
             val url = DeviceSync.latestMedia(this, d.id)
             runOnUiThread {
-                if (url == null) toast("अभी कोई media नहीं मिला। थोड़ा और रुककर फिर दबाएँ।")
+                if (url == null) toast("No media yet. Wait a bit and tap again.")
                 else openUrl(url)
             }
         }.start()
@@ -309,22 +305,22 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
 
     private fun renderCloud() {
         cloudBox.removeAllViews()
-        cloudBox.addView(dim("अपने सभी फ़ोन एक ही account से login करें। फिर ‘मेरे फ़ोन’ में सब दिखेंगे और चलाए जा सकेंगे।"))
+        cloudBox.addView(dim("Login all your phones with one account. Then they all show under My Phone and can be controlled."))
 
         val configured = CloudSync.isConfigured(store)
         if (!configured || showCloudSetup) {
-            cloudBox.addView(head("Cloud setup (एक बार)"))
+            cloudBox.addView(head("Cloud setup (one time)"))
             val url = input("Supabase Project URL (https://xxxx.supabase.co)", store.cloudUrl, false)
             val key = input("Supabase anon public key", store.cloudAnonKey, true)
             cloudBox.addView(url)
             cloudBox.addView(key)
-            cloudBox.addView(btnWide("Setup सेव करो") {
+            cloudBox.addView(btnWide("Save setup") {
                 val u = url.text.toString().trim()
-                if (!u.startsWith("https://")) toast("URL https:// से शुरू होना चाहिए") else {
+                if (!u.startsWith("https://")) toast("URL must start with https://") else {
                     store.cloudUrl = u
                     store.cloudAnonKey = key.text.toString().trim()
                     showCloudSetup = false
-                    toast("Setup सेव ✅")
+                    toast("Setup saved ✅")
                     renderCloud()
                 }
             })
@@ -335,29 +331,29 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             val email = input("Email", store.userEmail, false).apply {
                 inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
             }
-            val pass = input("Password (कम से कम 6 अक्षर)", "", true)
+            val pass = input("Password (at least 6 characters)", "", true)
             cloudBox.addView(email)
             cloudBox.addView(pass)
             val status = dim("")
             cloudBox.addView(row(
                 btn("Login") {
-                    status.text = "Login हो रहा है..."
+                    status.text = "Logging in..."
                     Thread {
                         val err = CloudSync.signIn(this, email.text.toString(), pass.text.toString())
                         runOnUiThread {
                             if (err == null) {
-                                toast("Login हो गया ✅"); renderCloud(); refresh()
+                                toast("Logged in ✅"); renderCloud(); refresh()
                             } else status.text = err
                         }
                     }.start()
                 },
-                btn("नया account") {
-                    status.text = "Account बन रहा है..."
+                btn("New account") {
+                    status.text = "Creating account..."
                     Thread {
                         val err = CloudSync.signUp(this, email.text.toString(), pass.text.toString())
                         runOnUiThread {
                             if (err == null) {
-                                toast("Account बन गया ✅"); renderCloud(); refresh()
+                                toast("Account created ✅"); renderCloud(); refresh()
                             } else status.text = err
                         }
                     }.start()
@@ -366,28 +362,28 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             cloudBox.addView(status)
         } else {
             cloudBox.addView(head("✅ Login: ${store.userEmail}"))
-            val nameBox = input("इस फ़ोन का नाम (जैसे: मेरा फ़ोन, दुकान वाला फ़ोन)", store.deviceName, false)
+            val nameBox = input("This phone's name (e.g. My Phone, Shop Phone)", store.deviceName, false)
             cloudBox.addView(nameBox)
             cloudBox.addView(row(
-                btn("नाम सेव करो") {
+                btn("Save name") {
                     store.deviceName = nameBox.text.toString().trim()
-                    toast("नाम सेव ✅")
+                    toast("Name saved ✅")
                     Thread { DeviceSync.pushHeartbeat(this) }.start()
                 },
                 btn("Logout") {
                     AlertDialog.Builder(this)
-                        .setMessage("Logout करें?")
+                        .setMessage("Logout?")
                         .setPositiveButton("Logout") { _, _ ->
                             CloudSync.signOut(this)
                             AjService.send(this, AjService.ACTION_STOP)
                             renderCloud(); refresh()
                         }
-                        .setNegativeButton("रहने दो", null)
+                        .setNegativeButton("Cancel", null)
                         .show()
                 }
             ))
             if (configured && !showCloudSetup) {
-                cloudBox.addView(btnWide("Cloud setup बदलो") { showCloudSetup = true; renderCloud() })
+                cloudBox.addView(btnWide("Change cloud setup") { showCloudSetup = true; renderCloud() })
             }
         }
     }
@@ -433,7 +429,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
             if (!granted) l.addView(MaterialButton(this).apply {
-                text = "चालू करें"; textSize = 12f; setOnClickListener { onFix() }
+                text = "Enable"; textSize = 12f; setOnClickListener { onFix() }
             })
             permBox.addView(l)
         }
@@ -442,13 +438,13 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             addRow(label, perms.all { PhoneInfo.has(this, it) }) { requestRuntime(arrayOf(*perms)) }
         }
 
-        rt("Location (फ़ोन कहाँ है)", Manifest.permission.ACCESS_FINE_LOCATION)
-        rt("Camera (दूर से फ़ोटो)", Manifest.permission.CAMERA)
-        rt("Microphone (दूर से रिकॉर्डिंग)", Manifest.permission.RECORD_AUDIO)
-        rt("कॉल लिस्ट (आज की कॉल count)", Manifest.permission.READ_CALL_LOG)
-        if (Build.VERSION.SDK_INT >= 33) rt("Notification दिखाना", Manifest.permission.POST_NOTIFICATIONS)
+        rt("Location (where the phone is)", Manifest.permission.ACCESS_FINE_LOCATION)
+        rt("Camera (remote photo)", Manifest.permission.CAMERA)
+        rt("Microphone (remote recording)", Manifest.permission.RECORD_AUDIO)
+        rt("Call log (today's call count)", Manifest.permission.READ_CALL_LOG)
+        if (Build.VERSION.SDK_INT >= 33) rt("Show notifications", Manifest.permission.POST_NOTIFICATIONS)
 
-        addRow("सारी फाइलें (आज के downloads)", PhoneInfo.canReadAllFiles(this)) {
+        addRow("All files (today's downloads)", PhoneInfo.canReadAllFiles(this)) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 openSettings(
                     Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")),
@@ -458,14 +454,14 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         }
 
         val pm = getSystemService(PowerManager::class.java)
-        addRow("बैटरी बचत से छूट (जुड़ा रहे)", pm.isIgnoringBatteryOptimizations(packageName)) {
+        addRow("Battery optimization exempt (stay connected)", pm.isIgnoringBatteryOptimizations(packageName)) {
             openSettings(
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
                 Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
             )
         }
 
-        permBox.addView(dim("कोई permission ‘restricted’ बोलकर न मिले: फ़ोन Settings → Apps → AJ → ⋮ → ‘Allow restricted settings’।"))
+        permBox.addView(dim("If a permission is blocked as restricted: phone Settings → Apps → My Devices → ⋮ → Allow restricted settings."))
     }
 
     private fun openSettings(vararg intents: Intent) {
@@ -475,7 +471,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             } catch (_: Exception) {
             }
         }
-        toast("Settings नहीं खुली, फ़ोन की Settings में AJ ढूँढें")
+        toast("Settings did not open, find My Devices in your phone Settings")
     }
 
     // ---------------- helpers ----------------
@@ -528,7 +524,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
         } catch (_: Exception) {
-            toast("Browser नहीं खुला")
+            toast("Browser did not open")
         }
     }
 
