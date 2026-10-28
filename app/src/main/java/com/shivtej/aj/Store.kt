@@ -27,6 +27,11 @@ class Store(context: Context) {
         get() = prefs.getString("device_name", "") ?: ""
         set(value) = prefs.edit().putString("device_name", value.trim()).apply()
 
+    /** Settings tab खोलने का PIN (शुरुआती 2580, user बदल सकता है) */
+    var settingsPin: String
+        get() = prefs.getString("settings_pin", "2580")?.takeIf { it.isNotBlank() } ?: "2580"
+        set(value) = prefs.edit().putString("settings_pin", value.trim()).apply()
+
     // ---------------- Cloud (Supabase) ----------------
 
     var cloudUrl: String

@@ -36,10 +36,12 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
     private lateinit var permBox: LinearLayout
     private lateinit var cloudBox: LinearLayout
     private lateinit var devicesBox: LinearLayout
+    private lateinit var lockBox: LinearLayout
     private lateinit var pages: List<View>
     private lateinit var tabs: List<TextView>
 
     private var devices: List<DeviceSync.Device>? = null
+    private var settingsUnlocked = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,11 +53,16 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         permBox = findViewById(R.id.permBox)
         cloudBox = findViewById(R.id.cloudBox)
         devicesBox = findViewById(R.id.devicesBox)
+        lockBox = findViewById(R.id.lockBox)
 
         pages = listOf<View>(findViewById(R.id.pageDevices), findViewById(R.id.pageSettings))
         tabs = listOf<TextView>(findViewById(R.id.navDevices), findViewById(R.id.navSettings))
-        tabs.forEachIndexed { i, tab -> tab.setOnClickListener { showPage(i) } }
-        showPage(savedInstanceState?.getInt("page") ?: 0)
+        tabs.forEachIndexed { i, tab ->
+            tab.setOnClickListener { if (i == 1) openSettingsTab() else showPage(i) }
+        }
+        settingsUnlocked = savedInstanceState?.getBoolean("unlocked") ?: false
+        val startPage = savedInstanceState?.getInt("page") ?: 0
+        showPage(if (startPage == 1 && !settingsUnlocked) 0 else startPage)
 
         findViewById<View>(R.id.refreshButton).setOnClickListener { loadDevices() }
 
@@ -67,6 +74,68 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putInt("page", pages.indexOfFirst { it.visibility == View.VISIBLE }.coerceAtLeast(0))
+        outState.putBoolean("unlocked", settingsUnlocked)
+    }
+
+    /** Settings tab सिर्फ सही PIN पर खुलेगा (app बंद-खोलने पर फिर से माँगेगा)। */
+    private fun openSettingsTab() {
+        if (settingsUnlocked) { showPage(1); return }
+        val pin = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "PIN"
+        }
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(pin)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Settings खोलने के लिए PIN डालें")
+            .setView(wrap)
+            .setPositiveButton("खोलो") { _, _ ->
+                if (pin.text.toString().trim() == store.settingsPin) {
+                    settingsUnlocked = true
+                    showPage(1)
+                } else toast("गलत PIN")
+            }
+            .setNegativeButton("रहने दो", null)
+            .show()
+    }
+
+    private fun renderLock() {
+        lockBox.removeAllViews()
+        lockBox.addView(dim("Settings इसी PIN से खुलती है। app बंद करके दोबारा खोलने पर PIN फिर माँगा जाएगा।"))
+        lockBox.addView(btnWide("Settings PIN बदलो") { changePinDialog() })
+    }
+
+    private fun changePinDialog() {
+        fun pinField(hintText: String) = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = hintText
+            setTextColor(color(R.color.text))
+            setHintTextColor(color(R.color.text_dim))
+        }
+        val p1 = pinField("नया PIN (कम से कम 4 अंक)")
+        val p2 = pinField("दोबारा वही PIN")
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), 0)
+            addView(p1); addView(p2)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("नया Settings PIN")
+            .setView(wrap)
+            .setPositiveButton("सेव करो") { _, _ ->
+                val a = p1.text.toString().trim()
+                val b = p2.text.toString().trim()
+                when {
+                    a.length < 4 -> toast("PIN कम से कम 4 अंक का रखें")
+                    a != b -> toast("दोनों PIN एक जैसे नहीं हैं")
+                    else -> { store.settingsPin = a; toast("PIN बदल गया ✅") }
+                }
+            }
+            .setNegativeButton("रहने दो", null)
+            .show()
     }
 
     override fun onStart() {
@@ -87,6 +156,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
     private fun refresh() {
         renderPermissions()
         renderCloud()
+        renderLock()
         onStatus(AjBus.status)
         if (store.loggedIn) {
             AjService.start(this)

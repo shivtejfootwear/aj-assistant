@@ -33,18 +33,18 @@ jobs:
           ./gradlew assembleRelease --stacktrace
 
       - name: APK का नाम
-        run: cp app/build/outputs/apk/release/app-release.apk "AJ-${{ github.run_number }}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "MyDevices-${{ github.run_number }}.apk"
 
       - name: APK सेव करो (Actions में)
         uses: actions/upload-artifact@v4
         with:
-          name: AJ-apk-${{ github.run_number }}
-          path: AJ-*.apk
+          name: MyDevices-apk-${{ github.run_number }}
+          path: MyDevices-*.apk
 
       - name: Release में डालो (फ़ोन से आसान download)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: AJ build ${{ github.run_number }}
-          body: AJ का नया APK। फ़ोन पर download करके install करें, पुराना हटाने की ज़रूरत नहीं।
-          files: AJ-*.apk
+          name: My Devices build ${{ github.run_number }}
+          body: My Devices का नया APK। फ़ोन पर download करके install करें, पुराना हटाने की ज़रूरत नहीं।
+          files: MyDevices-*.apk
