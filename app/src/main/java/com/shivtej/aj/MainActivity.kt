@@ -360,6 +360,9 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                 }
             ))
             cloudBox.addView(status)
+            if (configured && !showCloudSetup) {
+                cloudBox.addView(btnWide("Change cloud setup") { showCloudSetup = true; renderCloud() })
+            }
         } else {
             cloudBox.addView(head("✅ Login: ${store.userEmail}"))
             val nameBox = input("This phone's name (e.g. My Phone, Shop Phone)", store.deviceName, false)
