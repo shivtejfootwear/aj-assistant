@@ -36,6 +36,10 @@ android {
             storePassword = "ajassistant"
             keyAlias = "aj"
             keyPassword = "ajassistant"
+            // सभी फ़ोनों पर install हो (कुछ OEM installer v1 signature माँगते हैं)
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
