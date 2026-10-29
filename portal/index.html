@@ -1,10 +1,10 @@
-<title>AJ Devices Portal</title>
+<title>My Devices Portal</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
   /* Layout: single-column control console, dark HUD identity matching the AJ app */
   :root{
     --bg:#04060C; --panel:#0b1424; --panel2:#0e1a30; --stroke:#1e3350;
-    --fg:#eaf4ff; --dim:#7f93b5; --cyan:#29d3ff; --violet:#8b6cff; --mint:#3df5c4; --bad:#ff5c7a;
+    --fg:#eaf4ff; --dim:#7f93b5; --cyan:#2fe38a; --violet:#1b8f5c; --mint:#3df5c4; --bad:#ff5c7a;
     --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     color-scheme:dark;
@@ -12,7 +12,7 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{background:
-      radial-gradient(60rem 30rem at 50% -10%, #13263f 0%, rgba(4,6,12,0) 60%),
+      radial-gradient(60rem 30rem at 50% -10%, #0a1c14 0%, rgba(4,6,12,0) 60%),
       var(--bg);
     color:var(--fg); font-family:var(--sans); line-height:1.5;
     padding-left:max(16px,env(safe-area-inset-left,0px));
@@ -23,7 +23,7 @@
   header{display:flex; align-items:center; gap:12px; margin-bottom:18px}
   .logo{width:46px;height:46px;flex:0 0 auto}
   .chip{margin-left:auto; font-family:var(--mono); font-size:.72rem; padding:5px 11px; border-radius:999px;
-    border:1px solid var(--stroke); background:#0d2030; color:var(--mint); display:flex; gap:7px; align-items:center}
+    border:1px solid var(--stroke); background:#0a1c14; color:var(--mint); display:flex; gap:7px; align-items:center}
   .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--mint)}
   .card{background:linear-gradient(315deg,var(--panel2),var(--panel)); border:1px solid var(--stroke);
     border-radius:18px; padding:16px; margin-bottom:14px}
@@ -33,7 +33,7 @@
     border-radius:12px; padding:11px 13px; font-size:.95rem; font-family:var(--sans)}
   input:focus{outline:2px solid var(--cyan); outline-offset:1px}
   button{font-family:var(--sans); font-size:.9rem; cursor:pointer; border-radius:12px;
-    border:1px solid var(--stroke); background:#13263f; color:var(--cyan); padding:11px 14px; min-height:44px}
+    border:1px solid var(--stroke); background:#0a1c14; color:var(--cyan); padding:11px 14px; min-height:44px}
   button:hover{border-color:var(--cyan)}
   button.primary{background:linear-gradient(315deg,var(--cyan),var(--violet)); color:#04060c; border:0; font-weight:600}
   button:focus-visible{outline:2px solid var(--cyan); outline-offset:2px}
@@ -52,18 +52,14 @@
 
 <header>
   <svg class="logo" viewBox="0 0 108 108" aria-hidden="true">
-    <circle cx="54" cy="54" r="30" fill="#29d3ff" opacity=".10"/>
-    <path d="M54,24 L54,32" stroke="#29d3ff" stroke-width="2.5" stroke-linecap="round"/>
-    <circle cx="54" cy="22" r="3.2" fill="#8b6cff"/>
-    <rect x="26" y="46" width="5" height="16" rx="2" fill="#29d3ff"/>
-    <rect x="77" y="46" width="5" height="16" rx="2" fill="#29d3ff"/>
-    <rect x="31" y="32" width="46" height="44" rx="13" fill="#0e1a30" stroke="#29d3ff" stroke-width="3"/>
-    <rect x="36.5" y="43" width="35" height="17" rx="8.5" fill="#03060e" stroke="#1b7fa0" stroke-width="1.5"/>
-    <rect x="42" y="48" width="8" height="7" rx="3.5" fill="#29d3ff"/>
-    <rect x="58" y="48" width="8" height="7" rx="3.5" fill="#29d3ff"/>
+    <path d="M36,14 H72 A10,10 0 0 1 82,24 V84 A10,10 0 0 1 72,94 H36 A10,10 0 0 1 26,84 V24 A10,10 0 0 1 36,14 Z" fill="#0A1F16" stroke="#2FE38A" stroke-width="4"/>
+    <path d="M48,22 H60" stroke="#2FE38A" stroke-width="3" stroke-linecap="round"/>
+    <path d="M54,34 L70,39 V51 C70,61 63,67 54,71 C45,67 38,61 38,51 V39 Z" fill="#2FE38A"/>
+    <path d="M46.5,52 L51.5,57 L62,46.5" stroke="#04060C" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M48,86 H60" stroke="#1B8F5C" stroke-width="3" stroke-linecap="round"/>
   </svg>
   <div>
-    <h1>AJ</h1>
+    <h1>My Devices</h1>
     <div class="tag">My Devices Portal</div>
   </div>
   <div class="chip"><span class="dot" id="dot"></span><span id="chip">OFFLINE</span></div>
@@ -86,24 +82,24 @@
     <button class="primary" id="loginBtn">Login</button>
   </div>
   <div class="msg" id="authMsg"></div>
-  <div class="hint">यह वही account है जो आपके फ़ोनों के AJ app में डाला है। URL और key एक बार डालने पर इसी browser में याद रहेंगे।</div>
+  <div class="hint">Use the same account you entered in the My Devices app on your phones. The URL and key are remembered in this browser once entered.</div>
 </section>
 
 <!-- Devices -->
 <section id="deviceCard" hidden>
   <div class="card">
-    <h2 style="display:flex;align-items:center;gap:10px">मेरे फ़ोन
-      <button id="refreshBtn" style="margin-left:auto;padding:7px 12px;min-height:0">↻ ताज़ा</button>
+    <h2 style="display:flex;align-items:center;gap:10px">My Phones
+      <button id="refreshBtn" style="margin-left:auto;padding:7px 12px;min-height:0">↻ Refresh</button>
       <button id="logoutBtn" style="padding:7px 12px;min-height:0">Logout</button>
     </h2>
-    <div class="muted" id="devMsg">लोड हो रहा है...</div>
+    <div class="muted" id="devMsg">Loading...</div>
   </div>
   <div id="list"></div>
 </section>
 
 <footer>
-  हर फ़ोटो/रिकॉर्डिंग सामने वाले फ़ोन पर दिखती है (notification, आवाज़, हरा निशान)।<br>
-  सिर्फ अपने फ़ोनों के लिए।
+  Every photo/recording shows on that phone (notification, sound, green dot).<br>
+  For your own phones only.
 </footer>
 
 <script>
@@ -166,10 +162,10 @@ async function api(path, opts){
 }
 
 async function login(){
-  const msg = $("authMsg"); msg.className="msg"; msg.textContent="Login हो रहा है...";
+  const msg = $("authMsg"); msg.className="msg"; msg.textContent="Logging in...";
   S.url = $("url").value.trim().replace(/\/+$/,"");
   S.key = $("key").value.trim();
-  if (!S.url.startsWith("https://")){ msg.className="msg err"; msg.textContent="सही Project URL डालिए (https:// से)"; return; }
+  if (!S.url.startsWith("https://")){ msg.className="msg err"; msg.textContent="Enter a valid Project URL (starting with https://)"; return; }
   LS.set("aj_url", S.url); LS.set("aj_key", S.key);
   try{
     const r = await fetch(S.url + "/auth/v1/token?grant_type=password", {
@@ -180,13 +176,13 @@ async function login(){
     if (!r.ok){
       let e; try{ e=(await r.json()); }catch(_){ e={}; }
       msg.className="msg err";
-      msg.textContent = "Login नहीं हुआ: " + (e.error_description || e.msg || e.message || ("code "+r.status));
+      msg.textContent = "Login failed: " + (e.error_description || e.msg || e.message || ("code "+r.status));
       return;
     }
     saveSession(await r.json());
     showDevices();
   }catch(err){
-    msg.className="msg err"; msg.textContent="Internet नहीं मिला";
+    msg.className="msg err"; msg.textContent="No internet";
   }
 }
 
@@ -213,23 +209,23 @@ function esc(s){ return String(s==null?"":s).replace(/[<>&]/g, c=>({"<":"&lt;","
 async function loadDevices(){
   try{
     const r = await api("/rest/v1/aj_devices?select=device_id,name,status,last_seen&order=last_seen.desc");
-    if (!r.ok){ $("devMsg").textContent = "पढ़ नहीं पाया (code "+r.status+")"; return; }
+    if (!r.ok){ $("devMsg").textContent = "Could not read (code "+r.status+")"; return; }
     render(await r.json());
   }catch(e){
     if (e.message === "login"){ logout(); return; }
-    $("devMsg").textContent = "Internet नहीं मिला";
+    $("devMsg").textContent = "No internet";
   }
 }
 
 function render(devs){
-  $("devMsg").textContent = devs.length ? (devs.length + " फ़ोन") : "कोई फ़ोन नहीं मिला। हर फ़ोन पर AJ खोलकर इसी account से login कीजिए।";
+  $("devMsg").textContent = devs.length ? (devs.length + "  phones") : "No phones found. Open the app on each phone and login with this same account.";
   const list = $("list");
   list.innerHTML = "";
   devs.forEach(d => {
     const s = d.status || {};
     const mins = d.last_seen ? Math.floor((Date.now() - Date.parse(d.last_seen))/60000) : -1;
     const online = mins>=0 && mins<=3;
-    const seen = mins<0 ? "" : mins===0 ? " • अभी online" : mins<60 ? ` • ${mins} मिनट पहले` : ` • ${Math.floor(mins/60)} घंटे पहले`;
+    const seen = mins<0 ? "" : mins===0 ? " • online now" : mins<60 ? ` • ${mins} min ago` : ` • ${Math.floor(mins/60)} hr ago`;
     const stat = [];
     if ("battery" in s) stat.push("🔋 "+s.battery+"%"+(s.charging?" ⚡":""));
     if ("free_gb" in s) stat.push("💾 "+s.free_gb+"/"+s.total_gb+" GB");
@@ -238,18 +234,18 @@ function render(devs){
     const el = document.createElement("div");
     el.className = "card";
     el.innerHTML =
-      `<div class="dev-name">${online?"🟢":"⚪"} ${esc(d.name||"फ़ोन")}<span class="dev-sub">${seen}</span></div>` +
+      `<div class="dev-name">${online?"🟢":"⚪"} ${esc(d.name||"Phone")}<span class="dev-sub">${seen}</span></div>` +
       (stat.length ? `<div class="dev-stat">${stat.join("   ")}</div>` : "") +
-      (("lat" in s) ? `<a class="loc" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}">📍 location देखें${s.loc_age_min?` (${s.loc_age_min} मिनट पुरानी)`:""}</a>` : "");
+      (("lat" in s) ? `<a class="loc" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}">📍 View location${s.loc_age_min?` (${s.loc_age_min} min old)`:""}</a>` : "");
     const r1 = document.createElement("div"); r1.className="row";
-    r1.append(mkBtn("🔔 बजाओ",()=>cmd(d,"ring")), mkBtn("📍 location",()=>cmd(d,"locate")), mkBtn("↻ status",()=>cmd(d,"status")));
+    r1.append(mkBtn("🔔 Ring",()=>cmd(d,"ring")), mkBtn("📍 Locate",()=>cmd(d,"locate")), mkBtn("↻ Status",()=>cmd(d,"status")));
     const r2 = document.createElement("div"); r2.className="row";
-    r2.append(mkBtn("📷 पीछे",()=>cmd(d,"photo_back")), mkBtn("🤳 आगे",()=>cmd(d,"photo_front")), mkBtn("🎙 15s",()=>cmd(d,"record",{sec:15})));
+    r2.append(mkBtn("📷 Back",()=>cmd(d,"photo_back")), mkBtn("🤳 Front",()=>cmd(d,"photo_front")), mkBtn("🎙 15s",()=>cmd(d,"record",{sec:15})));
     const r3 = document.createElement("div"); r3.className="row";
-    r3.append(mkBtn("📥 नया फ़ोटो/रिकॉर्डिंग खोलो",()=>openMedia(d)));
+    r3.append(mkBtn("📥 Open new photo/recording",()=>openMedia(d)));
     el.append(r1,r2,r3);
     const note = document.createElement("div"); note.className="hint";
-    note.textContent = "फ़ोटो/रिकॉर्डिंग माँगने पर उस फ़ोन पर notification, आवाज़ और हरा निशान दिखता है। कुछ सेकंड बाद ‘खोलो’ दबाएँ।";
+    note.textContent = "When you request a photo/recording, that phone shows a notification, sound and a green dot. Tap Open after a few seconds.";
     el.append(note);
     list.append(el);
   });
@@ -270,7 +266,7 @@ async function cmd(d, type, args){
       headers:{ "Content-Type":"application/json", "Prefer":"return=minimal" },
       body: JSON.stringify(body)
     });
-    setChip(r.ok ? "SENT" : "ERROR", r.ok ? "#8b6cff" : "#ff5c7a");
+    setChip(r.ok ? "SENT" : "ERROR", r.ok ? "#1b8f5c" : "#ff5c7a");
     setTimeout(()=>setChip("LINKED","#3df5c4"), 2500);
   }catch(e){ if (e.message==="login") logout(); }
 }
@@ -280,14 +276,14 @@ async function openMedia(d){
     const r = await api("/rest/v1/aj_commands?select=result&target=eq."+d.device_id+"&state=eq.done&type=in.(photo_back,photo_front,record)&order=id.desc&limit=1");
     const rows = await r.json();
     const path = rows[0] && rows[0].result && rows[0].result.path;
-    if (!path){ alertInline(d,"अभी कोई media नहीं मिला। थोड़ा और रुककर फिर दबाएँ।"); return; }
+    if (!path){ alertInline(d,"No media yet. Wait a bit and tap again."); return; }
     const sr = await api("/storage/v1/object/sign/aj-media/"+path, {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify({ expiresIn: 21600 })
     });
     const sj = await sr.json();
-    if (!sj.signedURL){ alertInline(d,"link नहीं बना"); return; }
+    if (!sj.signedURL){ alertInline(d,"Could not create link"); return; }
     const a = document.createElement("a");
     a.href = S.url + "/storage/v1" + sj.signedURL;
     a.target = "_blank"; a.rel = "noopener";
