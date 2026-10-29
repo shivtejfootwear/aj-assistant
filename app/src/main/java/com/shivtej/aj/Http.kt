@@ -29,6 +29,7 @@ object Http {
         val c = URL(url).openConnection() as HttpURLConnection
         try {
             c.requestMethod = method
+            c.instanceFollowRedirects = false
             c.connectTimeout = 15000
             c.readTimeout = readTimeoutMs
             headers.forEach { (k, v) -> c.setRequestProperty(k, v) }

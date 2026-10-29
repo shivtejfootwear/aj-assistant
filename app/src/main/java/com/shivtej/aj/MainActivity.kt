@@ -360,8 +360,8 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                 }
             ))
             cloudBox.addView(status)
-            if (configured && !showCloudSetup) {
-                cloudBox.addView(btnWide("Change cloud setup") { showCloudSetup = true; renderCloud() })
+            if (!showCloudSetup) {
+                cloudBox.addView(btnWide("Change cloud setup (URL / key)") { showCloudSetup = true; renderCloud() })
             }
         } else {
             cloudBox.addView(head("✅ Login: ${store.userEmail}"))
