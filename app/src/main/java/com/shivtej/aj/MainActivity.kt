@@ -3,19 +3,25 @@ package com.shivtej.aj
 import android.Manifest
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.BitmapFactory
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.InputType
+import android.text.format.DateFormat
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.util.Date
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -146,6 +152,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
 
     override fun onStop() {
         AjBus.remove(this)
+        stopPlayer()
         super.onStop()
     }
 
@@ -262,11 +269,11 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                 btn("🤳 Front") { cmd(d, "photo_front") },
                 btn("🎙 15s") { cmd(d, "record", JSONObject().put("sec", 15)) }
             ))
-            box.addView(btnWide("📥 Open new photo/recording") { openMedia(d) })
-            box.addView(dim("When you request a photo/recording, that phone shows a notification, sound and a green dot. Tap this button after a few seconds."))
+            box.addView(dim("When you request a photo/recording, that phone shows a notification, sound and a green dot. After a few seconds open the gallery below."))
         } else {
             box.addView(dim("This phone is linked to your admin. You can control the other phones from here."))
         }
+        box.addView(btnWide("🖼 View photos / recordings") { openMediaGallery(d) })
         return box
     }
 
@@ -279,8 +286,8 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                     err ?: when (type) {
                         "ring" -> "${d.name} will ring (when it is online)"
                         "locate" -> "Requested location from ${d.name}, tap ↻ shortly"
-                        "photo_back", "photo_front" -> "Requested a photo from ${d.name}. After a few seconds tap Open new photo"
-                        "record" -> "Requested a recording from ${d.name}. After ~20 seconds tap Open new recording"
+                        "photo_back", "photo_front" -> "Requested a photo from ${d.name}. After a few seconds open the gallery."
+                        "record" -> "Requested a recording from ${d.name}. After ~20 seconds open the gallery."
                         else -> "Requested fresh info from ${d.name}, tap ↻ shortly"
                     }
                 )
@@ -288,16 +295,119 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         }.start()
     }
 
-    private fun openMedia(d: DeviceSync.Device) {
-        toast("Finding media...")
+    private var player: MediaPlayer? = null
+
+    private fun stopPlayer() {
+        try { player?.stop() } catch (_: Exception) {}
+        try { player?.release() } catch (_: Exception) {}
+        player = null
+    }
+
+    /** उस फ़ोन की सारी फ़ोटो (ऊपर) और रिकॉर्डिंग (नीचे) एक gallery में */
+    private fun openMediaGallery(d: DeviceSync.Device) {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(8))
+        }
+        box.addView(dim("Loading..."))
+        val scroll = ScrollView(this).apply { addView(box) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("${d.name} — photos / recordings")
+            .setView(scroll)
+            .setPositiveButton("Close", null)
+            .setOnDismissListener { stopPlayer() }
+            .create()
+        dialog.show()
+
         Thread {
-            val url = DeviceSync.latestMedia(this, d.id)
+            val list = DeviceSync.recentMedia(this, d.id)
             runOnUiThread {
-                if (url == null) toast("No media yet. Wait a bit and tap again.")
-                else openUrl(url)
+                if (!dialog.isShowing) return@runOnUiThread
+                box.removeAllViews()
+                if (list == null) {
+                    box.addView(dim("Could not load. Check internet / login and try again."))
+                    return@runOnUiThread
+                }
+                val photos = list.filter { it.kind == "photo" }
+                val audios = list.filter { it.kind == "audio" }
+                if (photos.isEmpty() && audios.isEmpty()) {
+                    box.addView(dim("Nothing yet. Ask this phone for a 📷 photo or 🎙 recording, wait a few seconds, then reopen this."))
+                    return@runOnUiThread
+                }
+
+                box.addView(head("📷 Photos (${photos.size})"))
+                if (photos.isEmpty()) box.addView(dim("No photos yet."))
+                photos.forEach { box.addView(photoBlock(it)) }
+
+                box.addView(head("🎙 Recordings (${audios.size})"))
+                if (audios.isEmpty()) box.addView(dim("No recordings yet."))
+                audios.forEach { box.addView(audioRow(it)) }
             }
         }.start()
     }
+
+    private fun photoBlock(m: DeviceSync.Media): View {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(6), 0, dp(12))
+        }
+        wrap.addView(dim("${if (m.front) "Front camera" else "Back camera"}  •  ${timeLabel(m.timeMillis)}"))
+        val img = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(240))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setBackgroundResource(R.color.bg2)
+        }
+        wrap.addView(img)
+        val note = dim("loading image…")
+        wrap.addView(note)
+        img.setOnClickListener {
+            Thread { val u = MediaUpload.sign(this, m.path); runOnUiThread { if (u != null) openUrl(u) } }.start()
+        }
+        Thread {
+            val url = MediaUpload.sign(this, m.path)
+            val bytes = if (url != null) Http.getBytes(url) else null
+            val bmp = bytes?.let { try { BitmapFactory.decodeByteArray(it, 0, it.size) } catch (e: Exception) { null } }
+            runOnUiThread {
+                if (bmp != null) { img.setImageBitmap(bmp); note.text = "Tap to open full size" }
+                else note.text = "Could not load this image"
+            }
+        }.start()
+        return wrap
+    }
+
+    private fun audioRow(m: DeviceSync.Media): View {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card)
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+        }
+        wrap.addView(line("🎙 Recording  •  ${timeLabel(m.timeMillis)}"))
+        wrap.addView(btnWide("▶ Play") {
+            toast("Loading…")
+            Thread {
+                val url = MediaUpload.sign(this, m.path)
+                runOnUiThread {
+                    if (url == null) { toast("Could not load"); return@runOnUiThread }
+                    stopPlayer()
+                    try {
+                        player = MediaPlayer().apply {
+                            setDataSource(url)
+                            setOnPreparedListener { it.start(); toast("Playing…") }
+                            setOnCompletionListener { stopPlayer() }
+                            prepareAsync()
+                        }
+                    } catch (e: Exception) { toast("Could not play") }
+                }
+            }.start()
+        })
+        return wrap
+    }
+
+    private fun timeLabel(ms: Long): String =
+        if (ms <= 0) "" else DateFormat.format("dd MMM, hh:mm a", Date(ms)).toString()
 
     // ---------------- Cloud login ----------------
 

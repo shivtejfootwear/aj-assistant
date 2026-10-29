@@ -46,4 +46,20 @@ object Http {
             c.disconnect()
         }
     }
+
+    /** किसी URL से raw bytes (जैसे signed फ़ोटो) — image दिखाने के लिए */
+    fun getBytes(url: String, timeoutMs: Int = 60000): ByteArray? {
+        val c = URL(url).openConnection() as HttpURLConnection
+        return try {
+            c.requestMethod = "GET"
+            c.instanceFollowRedirects = true
+            c.connectTimeout = 15000
+            c.readTimeout = timeoutMs
+            if (c.responseCode in 200..299) c.inputStream.use { it.readBytes() } else null
+        } catch (e: Exception) {
+            null
+        } finally {
+            c.disconnect()
+        }
+    }
 }

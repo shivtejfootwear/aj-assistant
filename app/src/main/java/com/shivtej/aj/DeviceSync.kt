@@ -29,6 +29,14 @@ object DeviceSync {
         val isThis: Boolean,
     )
 
+    /** एक captured फ़ाइल (photo/audio) की जानकारी */
+    data class Media(
+        val kind: String,      // "photo" या "audio"
+        val path: String,      // storage path
+        val front: Boolean,    // photo front/back
+        val timeMillis: Long,  // कब बना
+    )
+
     // ---------------- इस फ़ोन का काम ----------------
 
     /** इस फ़ोन की ताज़ा जानकारी cloud पर भेजो */
@@ -233,6 +241,41 @@ object DeviceSync {
             if (arr.length() == 0) return null
             val path = arr.getJSONObject(0).optJSONObject("result")?.optString("path").orEmpty()
             if (path.isBlank()) null else MediaUpload.sign(ctx, path)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** उस फ़ोन की हाल की सारी फ़ोटो/रिकॉर्डिंग (नई पहले) */
+    fun recentMedia(ctx: Context, targetDeviceId: String, limit: Int = 30): List<Media>? {
+        val store = Store(ctx)
+        val headers = CloudSync.authHeadersEnsured(ctx) ?: return null
+        return try {
+            val res = Http.request(
+                "GET",
+                "${store.cloudUrl}/rest/v1/aj_commands?select=type,result,created_at&target=eq.$targetDeviceId&state=eq.done&type=in.(photo_back,photo_front,record)&order=id.desc&limit=$limit",
+                headers
+            )
+            if (!res.ok) return null
+            val arr = JSONArray(res.body)
+            val out = ArrayList<Media>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val r = o.optJSONObject("result") ?: continue
+                if (!r.optBoolean("ok")) continue
+                val path = r.optString("path")
+                if (path.isBlank()) continue
+                val type = o.optString("type")
+                out.add(
+                    Media(
+                        kind = r.optString("kind").ifBlank { if (type.startsWith("photo")) "photo" else "audio" },
+                        path = path,
+                        front = type == "photo_front",
+                        timeMillis = parseIso(o.optString("created_at"))
+                    )
+                )
+            }
+            out
         } catch (e: Exception) {
             null
         }

@@ -46,6 +46,9 @@
   .dev-sub{font-size:.8rem; color:var(--dim); margin-top:4px}
   a.loc{color:var(--mint); font-size:.85rem; display:inline-block; margin-top:8px; text-decoration:none}
   .muted{color:var(--dim); font-size:.86rem}
+  .gal-h{color:var(--cyan); font-weight:600; font-size:.95rem; margin-top:16px; border-top:1px solid var(--stroke); padding-top:12px}
+  .gal-img{width:100%; border-radius:12px; border:1px solid var(--stroke); margin-top:4px; display:block; background:#0a1c14; min-height:60px}
+  audio{margin-top:4px}
   .hint{font-size:.78rem; color:var(--dim); margin-top:10px; line-height:1.45}
   footer{font-size:.74rem; color:var(--dim); text-align:center; margin:18px 0 6px; line-height:1.5}
 </style>
@@ -241,11 +244,12 @@ function render(devs){
     r1.append(mkBtn("🔔 Ring",()=>cmd(d,"ring")), mkBtn("📍 Locate",()=>cmd(d,"locate")), mkBtn("↻ Status",()=>cmd(d,"status")));
     const r2 = document.createElement("div"); r2.className="row";
     r2.append(mkBtn("📷 Back",()=>cmd(d,"photo_back")), mkBtn("🤳 Front",()=>cmd(d,"photo_front")), mkBtn("🎙 15s",()=>cmd(d,"record",{sec:15})));
+    const gal = document.createElement("div");
     const r3 = document.createElement("div"); r3.className="row";
-    r3.append(mkBtn("📥 Open new photo/recording",()=>openMedia(d)));
-    el.append(r1,r2,r3);
+    r3.append(mkBtn("🖼 View photos / recordings",()=>openGallery(d, gal)));
+    el.append(r1,r2,r3,gal);
     const note = document.createElement("div"); note.className="hint";
-    note.textContent = "When you request a photo/recording, that phone shows a notification, sound and a green dot. Tap Open after a few seconds.";
+    note.textContent = "When you request a photo/recording, that phone shows a notification, sound and a green dot. After a few seconds open the gallery.";
     el.append(note);
     list.append(el);
   });
@@ -271,24 +275,53 @@ async function cmd(d, type, args){
   }catch(e){ if (e.message==="login") logout(); }
 }
 
-async function openMedia(d){
+async function sign(path){
+  const sr = await api("/storage/v1/object/sign/aj-media/"+path, {
+    method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ expiresIn: 21600 })
+  });
+  const sj = await sr.json();
+  return sj.signedURL ? (S.url + "/storage/v1" + sj.signedURL) : null;
+}
+
+function fmtTime(iso){ try{ return new Date(iso).toLocaleString(); }catch(e){ return ""; } }
+
+async function openGallery(d, gal){
+  gal.innerHTML = '<div class="muted" style="margin-top:10px">Loading…</div>';
   try{
-    const r = await api("/rest/v1/aj_commands?select=result&target=eq."+d.device_id+"&state=eq.done&type=in.(photo_back,photo_front,record)&order=id.desc&limit=1");
+    const r = await api("/rest/v1/aj_commands?select=type,result,created_at&target=eq."+d.device_id+"&state=eq.done&type=in.(photo_back,photo_front,record)&order=id.desc&limit=30");
+    if (!r.ok){ gal.innerHTML='<div class="muted" style="margin-top:10px">Could not load.</div>'; return; }
     const rows = await r.json();
-    const path = rows[0] && rows[0].result && rows[0].result.path;
-    if (!path){ alertInline(d,"No media yet. Wait a bit and tap again."); return; }
-    const sr = await api("/storage/v1/object/sign/aj-media/"+path, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ expiresIn: 21600 })
-    });
-    const sj = await sr.json();
-    if (!sj.signedURL){ alertInline(d,"Could not create link"); return; }
-    const a = document.createElement("a");
-    a.href = S.url + "/storage/v1" + sj.signedURL;
-    a.target = "_blank"; a.rel = "noopener";
-    document.body.append(a); a.click(); a.remove();
-  }catch(e){ if (e.message==="login") logout(); }
+    const items = rows.filter(x=>x.result && x.result.ok && x.result.path).map(x=>({
+      kind: x.result.kind || (x.type.indexOf("photo")===0 ? "photo":"audio"),
+      path: x.result.path, front: x.type==="photo_front", t: x.created_at
+    }));
+    const photos = items.filter(i=>i.kind==="photo");
+    const audios = items.filter(i=>i.kind==="audio");
+    if (!photos.length && !audios.length){
+      gal.innerHTML='<div class="muted" style="margin-top:10px">Nothing yet. Ask for a 📷 photo or 🎙 recording, wait a few seconds, then tap again.</div>';
+      return;
+    }
+    gal.innerHTML="";
+    const hP = document.createElement("div"); hP.className="gal-h"; hP.textContent="📷 Photos ("+photos.length+")"; gal.append(hP);
+    if (!photos.length){ const m=document.createElement("div"); m.className="muted"; m.textContent="No photos yet."; gal.append(m); }
+    for (const m of photos){
+      const cap = document.createElement("div"); cap.className="muted"; cap.style.marginTop="8px";
+      cap.textContent = (m.front?"Front camera":"Back camera")+"  •  "+fmtTime(m.t);
+      const im = document.createElement("img"); im.className="gal-img"; im.alt="photo";
+      gal.append(cap, im);
+      sign(m.path).then(u=>{ if(u){ im.src=u; im.style.cursor="pointer"; im.addEventListener("click",()=>window.open(u,"_blank")); } else cap.textContent+="  (failed)"; });
+    }
+    const hA = document.createElement("div"); hA.className="gal-h"; hA.textContent="🎙 Recordings ("+audios.length+")"; gal.append(hA);
+    if (!audios.length){ const m=document.createElement("div"); m.className="muted"; m.textContent="No recordings yet."; gal.append(m); }
+    for (const m of audios){
+      const cap = document.createElement("div"); cap.className="muted"; cap.style.marginTop="8px";
+      cap.textContent = "🎙 Recording  •  "+fmtTime(m.t);
+      const au = document.createElement("audio"); au.controls=true; au.style.width="100%"; au.style.marginTop="4px";
+      gal.append(cap, au);
+      sign(m.path).then(u=>{ if(u) au.src=u; else cap.textContent+="  (failed)"; });
+    }
+  }catch(e){ if (e.message==="login") logout(); else gal.innerHTML='<div class="muted" style="margin-top:10px">Error loading media.</div>'; }
 }
 
 function alertInline(d, text){
