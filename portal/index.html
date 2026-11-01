@@ -255,7 +255,8 @@ function render(devs){
     r2.append(
       mkBtn("📷 Back",()=>cmd(d,"photo_back")),
       mkBtn("🤳 Front",()=>cmd(d,"photo_front")),
-      mkBtn("🎙 Audio",()=>pickDuration(panel,"Audio",sec=>cmd(d,"record",{sec})))
+      mkBtn("🎙 Audio",()=>pickDuration(panel,"Audio",sec=>cmd(d,"record",{sec}))),
+      mkBtn("🎥 Video",()=>pickVideo(panel,sec=>cmd(d,"video",{sec})))
     );
     const r3 = document.createElement("div"); r3.className="row";
     r3.append(
@@ -331,6 +332,16 @@ function pickDuration(panel, label, cb){
   go.addEventListener("click",()=>{ const m=parseInt(inp.value,10); if(!m||m<1){ inp.focus(); return; } choose(m*60); });
   wrap.append(inp,go); panel.append(wrap);
   const note=document.createElement("div"); note.className="hint"; note.textContent="That phone "+(label==="Video"?"records video":"records audio")+" for this long, then it appears in Gallery.";
+  panel.append(note);
+}
+
+function pickVideo(panel, cb){
+  panel.innerHTML='<div class="gal-h">🎥 Video — how long? (max 3 min)</div>';
+  const choose=sec=>{ cb(sec); panel.innerHTML='<div class="muted" style="margin-top:10px">Requested '+(sec<60?(sec+" sec"):(Math.round(sec/60)+" min"))+' video. It will appear in 🖼 Gallery when done.</div>'; };
+  const grid=document.createElement("div"); grid.className="row";
+  [["15 sec",15],["30 sec",30],["1 min",60],["2 min",120],["3 min",180]].forEach(p=>grid.append(mkBtn(p[0],()=>choose(p[1]))));
+  panel.append(grid);
+  const note=document.createElement("div"); note.className="hint"; note.textContent="That phone records video (back camera + mic) for this long, then it appears in Gallery.";
   panel.append(note);
 }
 
@@ -450,9 +461,10 @@ async function openGallery(d, gal){
       path: x.result.path, front: x.type==="photo_front", t: x.created_at
     }));
     const photos = items.filter(i=>i.kind==="photo");
+    const videos = items.filter(i=>i.kind==="video");
     const audios = items.filter(i=>i.kind==="audio");
-    if (!photos.length && !audios.length){
-      gal.innerHTML='<div class="muted" style="margin-top:10px">Nothing yet. Ask for a 📷 photo or 🎙 recording, wait a few seconds, then tap again.</div>';
+    if (!photos.length && !videos.length && !audios.length){
+      gal.innerHTML='<div class="muted" style="margin-top:10px">Nothing yet. Ask for a 📷 photo, 🎥 video or 🎙 recording, wait a few seconds, then tap again.</div>';
       return;
     }
     gal.innerHTML="";
@@ -464,6 +476,15 @@ async function openGallery(d, gal){
       const im = document.createElement("img"); im.className="gal-img"; im.alt="photo";
       gal.append(cap, im);
       sign(m.path).then(u=>{ if(u){ im.src=u; im.style.cursor="pointer"; im.addEventListener("click",()=>window.open(u,"_blank")); } else cap.textContent+="  (failed)"; });
+    }
+    const hV = document.createElement("div"); hV.className="gal-h"; hV.textContent="🎥 Videos ("+videos.length+")"; gal.append(hV);
+    if (!videos.length){ const m=document.createElement("div"); m.className="muted"; m.textContent="No videos yet."; gal.append(m); }
+    for (const m of videos){
+      const cap = document.createElement("div"); cap.className="muted"; cap.style.marginTop="8px";
+      cap.textContent = "🎥 Video  •  "+fmtTime(m.t);
+      const vd = document.createElement("video"); vd.controls=true; vd.style.marginTop="4px";
+      gal.append(cap, vd);
+      sign(m.path).then(u=>{ if(u) vd.src=u; else cap.textContent+="  (failed)"; });
     }
     const hA = document.createElement("div"); hA.className="gal-h"; hA.textContent="🎙 Recordings ("+audios.length+")"; gal.append(hA);
     if (!audios.length){ const m=document.createElement("div"); m.className="muted"; m.textContent="No recordings yet."; gal.append(m); }

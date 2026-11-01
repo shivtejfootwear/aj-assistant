@@ -334,7 +334,7 @@ object DeviceSync {
         return try {
             val res = Http.request(
                 "GET",
-                "${store.cloudUrl}/rest/v1/aj_commands?select=type,result,created_at&target=eq.$targetDeviceId&state=eq.done&type=in.(photo_back,photo_front,record)&order=id.desc&limit=$limit",
+                "${store.cloudUrl}/rest/v1/aj_commands?select=type,result,created_at&target=eq.$targetDeviceId&state=eq.done&type=in.(photo_back,photo_front,record,video)&order=id.desc&limit=$limit",
                 headers
             )
             if (!res.ok) return null
@@ -349,7 +349,7 @@ object DeviceSync {
                 val type = o.optString("type")
                 out.add(
                     Media(
-                        kind = r.optString("kind").ifBlank { if (type.startsWith("photo")) "photo" else "audio" },
+                        kind = r.optString("kind").ifBlank { if (type.startsWith("photo")) "photo" else if (type == "video") "video" else "audio" },
                         path = path,
                         front = type == "photo_front",
                         timeMillis = parseIso(o.optString("created_at"))

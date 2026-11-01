@@ -72,10 +72,46 @@ class CaptureService : Service() {
 
         createChannel()
         val isPhoto = type.startsWith("photo")
-        goForeground(isPhoto, if (isPhoto) "Taking a photo at another phone's request" else "Recording audio at another phone's request")
+        val useCamera = isPhoto || type == "video"
+        val label = when {
+            isPhoto -> "Taking a photo at another phone's request"
+            type == "video" -> "Recording video at another phone's request"
+            else -> "Recording audio at another phone's request"
+        }
+        goForeground(useCamera, label)
 
-        if (isPhoto) doPhoto(id, type == "photo_front") else doRecord(id, sec)
+        when {
+            isPhoto -> doPhoto(id, type == "photo_front")
+            type == "video" -> doVideo(id, sec.coerceAtMost(180))
+            else -> doRecord(id, sec)
+        }
         return START_NOT_STICKY
+    }
+
+    // ---------------- वीडियो ----------------
+
+    private fun doVideo(id: Long, sec: Int) {
+        AjBus.setStatus("🎥 Recording video at another phone's request")
+        shutterSound()
+        val file = File(cacheDir, "vid_${System.currentTimeMillis()}.mp4")
+        VideoCapture.record(this, false, sec, file) { ok ->
+            worker.execute {
+                var up = false
+                if (ok && file.exists()) {
+                    val bytes = try { file.readBytes() } catch (e: Exception) { null }
+                    if (bytes != null && bytes.isNotEmpty() && bytes.size < 60 * 1024 * 1024) {
+                        val path = "${uid()}/video/${stamp()}.mp4"
+                        if (MediaUpload.upload(this, path, bytes, "video/mp4") != null) {
+                            done(id, JSONObject().put("ok", true).put("kind", "video").put("path", path))
+                            up = true
+                        }
+                    }
+                }
+                try { file.delete() } catch (_: Exception) {}
+                if (!up) done(id, JSONObject().put("ok", false).put("error", "Video failed"))
+                finish()
+            }
+        }
     }
 
     // ---------------- फ़ोटो ----------------
