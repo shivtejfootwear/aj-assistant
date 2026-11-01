@@ -22,6 +22,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.util.Date
+import java.util.Locale
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -262,16 +263,21 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             box.addView(row(
                 btn("🔔 Ring") { cmd(d, "ring") },
                 btn("📍 Locate") { cmd(d, "locate") },
-                btn("↻ Status") { cmd(d, "status") }
+                btn("🔄 Status") { cmd(d, "status") }
             ))
             box.addView(row(
                 btn("📷 Back") { cmd(d, "photo_back") },
                 btn("🤳 Front") { cmd(d, "photo_front") },
-                btn("🎙 15s") { cmd(d, "record", JSONObject().put("sec", 15)) }
+                btn("🎙 Audio") { pickDuration(d, "Audio") { sec -> cmd(d, "record", JSONObject().put("sec", sec)) } }
             ))
-            box.addView(dim("When you request a photo/recording, that phone shows a notification, sound and a green dot. After a few seconds open the gallery below."))
+            box.addView(row(
+                btn("💬 Messages") { openMessages(d) },
+                btn("📞 Calls") { openCalls(d) },
+                btn("📂 Files") { openFiles(d, "") }
+            ))
+            box.addView(dim("Camera/mic tasks show a notification, sound and a green dot on that phone. After a few seconds open the gallery below."))
         } else {
-            box.addView(dim("This phone is linked to your admin. You can control the other phones from here."))
+            box.addView(dim("This phone is linked to your admin. Use another phone or the web portal to control it."))
         }
         box.addView(btnWide("🖼 View photos / recordings") { openMediaGallery(d) })
         return box
@@ -409,6 +415,158 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
     private fun timeLabel(ms: Long): String =
         if (ms <= 0) "" else DateFormat.format("dd MMM, hh:mm a", Date(ms)).toString()
 
+    // ---------------- duration picker ----------------
+
+    private fun pickDuration(d: DeviceSync.Device, label: String, cb: (Int) -> Unit) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(8), dp(18), 0) }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("$label — how long?")
+            .setView(ScrollView(this).apply { addView(box) })
+            .setNegativeButton("Cancel", null)
+            .create()
+        intArrayOf(1, 2, 5, 10, 15, 30, 60).forEach { m ->
+            box.addView(btnWide("$m min") { cb(m * 60); dialog.dismiss() })
+        }
+        val inp = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER; hint = "custom minutes"
+            setTextColor(color(R.color.text)); setHintTextColor(color(R.color.text_dim))
+        }
+        box.addView(inp)
+        box.addView(btnWide("Start") {
+            val m = inp.text.toString().trim().toIntOrNull()
+            if (m == null || m < 1) toast("Enter minutes") else { cb(m * 60); dialog.dismiss() }
+        })
+        dialog.show()
+    }
+
+    // ---------------- Messages / Calls ----------------
+
+    private fun dataDialog(title: String, build: (LinearLayout) -> Unit, fetch: () -> JSONObject?) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(8), dp(18), dp(8)) }
+        box.addView(dim("Loading… (phone must be online)"))
+        val dialog = AlertDialog.Builder(this).setTitle(title)
+            .setView(ScrollView(this).apply { addView(box) })
+            .setPositiveButton("Close", null).create()
+        dialog.show()
+        Thread {
+            val res = fetch()
+            runOnUiThread {
+                if (!dialog.isShowing) return@runOnUiThread
+                box.removeAllViews()
+                when {
+                    res == null -> box.addView(dim("No answer. Is that phone online?"))
+                    !res.optBoolean("ok") -> box.addView(dim(res.optString("error", "Could not read")))
+                    else -> build(box)
+                }
+            }
+        }.start()
+    }
+
+    private fun openMessages(d: DeviceSync.Device) {
+        var result: JSONObject? = null
+        dataDialog("💬 Messages — ${d.name}", { box ->
+            val arr = result?.optJSONArray("list") ?: org.json.JSONArray()
+            box.addView(head("💬 Messages (${arr.length()})"))
+            if (arr.length() == 0) box.addView(dim("No messages."))
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                box.addView(line("${o.optString("from")}  •  ${timeLabel(o.optLong("time"))}"))
+                box.addView(dim(o.optString("body")))
+            }
+        }, { DeviceSync.sendCommandWait(this, d.id, "sms", null).also { result = it } })
+    }
+
+    private fun openCalls(d: DeviceSync.Device) {
+        var result: JSONObject? = null
+        val ic = mapOf("in" to "📥", "out" to "📤", "missed" to "❌", "rejected" to "⛔", "other" to "•")
+        dataDialog("📞 Calls — ${d.name}", { box ->
+            val arr = result?.optJSONArray("list") ?: org.json.JSONArray()
+            box.addView(head("📞 Call history (${arr.length()})"))
+            if (arr.length() == 0) box.addView(dim("No calls."))
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val dur = if (o.optInt("dur") > 0) " • ${o.optInt("dur")}s" else ""
+                box.addView(line("${ic[o.optString("type")] ?: "•"} ${o.optString("name")}  •  ${timeLabel(o.optLong("time"))}"))
+                box.addView(dim("${o.optString("type")}$dur"))
+            }
+        }, { DeviceSync.sendCommandWait(this, d.id, "calls", null).also { result = it } })
+    }
+
+    // ---------------- Files ----------------
+
+    private fun openFiles(d: DeviceSync.Device, path: String) {
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(8), dp(18), dp(8)) }
+        val scroll = ScrollView(this).apply { addView(box) }
+        val dialog = AlertDialog.Builder(this).setTitle("📂 Files — ${d.name}")
+            .setView(scroll).setPositiveButton("Close", null).create()
+        dialog.show()
+
+        if (path.isEmpty()) {
+            box.addView(head("📂 Files"))
+            val base = "/storage/emulated/0"
+            val roots = listOf(
+                "⬇️ Downloads" to "$base/Download",
+                "🖼️ Gallery (DCIM)" to "$base/DCIM",
+                "📸 Pictures" to "$base/Pictures",
+                "🎬 Movies" to "$base/Movies",
+                "💬 WhatsApp" to "$base/Android/media/com.whatsapp/WhatsApp/Media",
+                "🗂️ All storage" to base
+            )
+            roots.forEach { (name, p) -> box.addView(btnWide(name) { dialog.dismiss(); openFiles(d, p) }) }
+            return
+        }
+
+        box.addView(dim("Opening folder… (phone must be online)"))
+        Thread {
+            val res = DeviceSync.sendCommandWait(this, d.id, "list_dir", JSONObject().put("path", path))
+            runOnUiThread {
+                if (!dialog.isShowing) return@runOnUiThread
+                box.removeAllViews()
+                if (res == null) { box.addView(dim("No answer. Is that phone online?")); box.addView(btnWide("← Back") { dialog.dismiss(); openFiles(d, "") }); return@runOnUiThread }
+                if (!res.optBoolean("ok")) { box.addView(dim(res.optString("error", "Could not open"))); box.addView(btnWide("← Back") { dialog.dismiss(); openFiles(d, "") }); return@runOnUiThread }
+                box.addView(dim("🗂️ ${res.optString("path")}"))
+                val parent = res.optString("parent")
+                box.addView(btnWide("← Back") { dialog.dismiss(); openFiles(d, parent) })
+                val dirs = res.optJSONArray("dirs") ?: org.json.JSONArray()
+                for (i in 0 until dirs.length()) {
+                    val o = dirs.getJSONObject(i)
+                    box.addView(btnWide("📁 ${o.optString("name")}") { dialog.dismiss(); openFiles(d, o.optString("path")) })
+                }
+                val files = res.optJSONArray("files") ?: org.json.JSONArray()
+                for (i in 0 until files.length()) {
+                    val o = files.getJSONObject(i)
+                    box.addView(line("${o.optString("name")}"))
+                    box.addView(dim("${fmtSize(o.optLong("size"))} • ${timeLabel(o.optLong("mtime"))}"))
+                    box.addView(btnWide("👁 Open / download") { pullAndOpen(d, o.optString("path"), o.optString("name")) })
+                }
+                if (dirs.length() == 0 && files.length() == 0) box.addView(dim("Empty folder."))
+            }
+        }.start()
+    }
+
+    private fun pullAndOpen(d: DeviceSync.Device, filePath: String, name: String) {
+        toast("Fetching $name…")
+        Thread {
+            val res = DeviceSync.sendCommandWait(this, d.id, "pull_file", JSONObject().put("path", filePath), 60)
+            val url = if (res != null && res.optBoolean("ok")) MediaUpload.sign(this, res.optString("path")) else null
+            runOnUiThread {
+                when {
+                    res == null -> toast("No answer. Phone offline?")
+                    !res.optBoolean("ok") -> toast(res.optString("error", "Could not fetch"))
+                    url == null -> toast("Could not create link")
+                    else -> openUrl(url)
+                }
+            }
+        }.start()
+    }
+
+    private fun fmtSize(b: Long): String = when {
+        b < 1024 -> "$b B"
+        b < 1048576 -> "${b / 1024} KB"
+        b < 1073741824 -> String.format(Locale.US, "%.1f MB", b / 1048576.0)
+        else -> String.format(Locale.US, "%.2f GB", b / 1073741824.0)
+    }
+
     // ---------------- Cloud login ----------------
 
     private var showCloudSetup = false
@@ -509,6 +667,7 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             Manifest.permission.CAMERA,
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.READ_CALL_LOG,
+            Manifest.permission.READ_SMS,
         )
         if (Build.VERSION.SDK_INT >= 33) list.add(Manifest.permission.POST_NOTIFICATIONS)
         return list.toTypedArray()
@@ -554,7 +713,8 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
         rt("Location (where the phone is)", Manifest.permission.ACCESS_FINE_LOCATION)
         rt("Camera (remote photo)", Manifest.permission.CAMERA)
         rt("Microphone (remote recording)", Manifest.permission.RECORD_AUDIO)
-        rt("Call log (today's call count)", Manifest.permission.READ_CALL_LOG)
+        rt("Call log (history)", Manifest.permission.READ_CALL_LOG)
+        rt("Messages (read SMS)", Manifest.permission.READ_SMS)
         if (Build.VERSION.SDK_INT >= 33) rt("Show notifications", Manifest.permission.POST_NOTIFICATIONS)
 
         addRow("All files (today's downloads)", PhoneInfo.canReadAllFiles(this)) {

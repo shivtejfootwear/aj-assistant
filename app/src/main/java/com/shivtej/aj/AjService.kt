@@ -49,7 +49,7 @@ class AjService : Service() {
                 } catch (_: Exception) {
                 }
             }
-            main.postDelayed(this, 45_000)
+            main.postDelayed(this, 7_000)
         }
     }
 
@@ -98,7 +98,7 @@ class AjService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("AJ")
+            .setContentTitle("My Devices")
             .setContentText("This phone is linked to your admin")
             .setContentIntent(open)
             .setOngoing(true)

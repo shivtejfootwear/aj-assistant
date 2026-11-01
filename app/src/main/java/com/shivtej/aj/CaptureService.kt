@@ -68,7 +68,7 @@ class CaptureService : Service() {
         val id = intent?.getLongExtra(EXTRA_ID, -1) ?: -1
         cmdId = id
         val type = intent?.getStringExtra(EXTRA_TYPE) ?: "photo_back"
-        val sec = (intent?.getIntExtra(EXTRA_SEC, 15) ?: 15).coerceIn(3, 120)
+        val sec = (intent?.getIntExtra(EXTRA_SEC, 15) ?: 15).coerceIn(3, 7200)
 
         createChannel()
         val isPhoto = type.startsWith("photo")

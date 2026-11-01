@@ -111,8 +111,12 @@ object DeviceSync {
                     "ring" -> { ring(ctx); markDone(ctx, id, JSONObject().put("ok", true)) }
                     "locate" -> { located = true; markDone(ctx, id, JSONObject().put("ok", true)) }
                     "status" -> markDone(ctx, id, JSONObject().put("ok", true))
+                    "sms" -> markDone(ctx, id, smsResult(ctx))
+                    "calls" -> markDone(ctx, id, callsResult(ctx))
+                    "list_dir" -> markDone(ctx, id, PhoneInfo.listDir(ctx, args.optString("path")))
+                    "pull_file" -> markDone(ctx, id, pullFileResult(ctx, args.optString("path")))
                     // camera/recording: CaptureService करता है और खुद result लिखता है (notification + आवाज़ के साथ)
-                    "photo_back", "photo_front", "record" ->
+                    "photo_back", "photo_front", "record", "video" ->
                         CaptureService.start(ctx, id, type, args.optInt("sec", 15))
                     else -> markDone(ctx, id, JSONObject().put("ok", false))
                 }
@@ -121,6 +125,53 @@ object DeviceSync {
             pushHeartbeat(ctx)
         } catch (_: Exception) {
         }
+    }
+
+    private fun smsResult(ctx: Context): JSONObject {
+        val list = PhoneInfo.recentSms(ctx) ?: return JSONObject().put("ok", false).put("error", "SMS permission off")
+        val arr = JSONArray()
+        list.forEach { arr.put(JSONObject().put("from", it.from).put("body", it.body).put("time", it.time)) }
+        return JSONObject().put("ok", true).put("list", arr)
+    }
+
+    private fun callsResult(ctx: Context): JSONObject {
+        val list = PhoneInfo.recentCalls(ctx) ?: return JSONObject().put("ok", false).put("error", "Call log permission off")
+        val arr = JSONArray()
+        list.forEach {
+            arr.put(JSONObject().put("name", it.name).put("number", it.number).put("type", it.type).put("time", it.time).put("dur", it.durationSec))
+        }
+        return JSONObject().put("ok", true).put("list", arr)
+    }
+
+    private fun mimeOf(name: String): String {
+        val n = name.lowercase()
+        return when {
+            n.endsWith(".jpg") || n.endsWith(".jpeg") -> "image/jpeg"
+            n.endsWith(".png") -> "image/png"
+            n.endsWith(".gif") -> "image/gif"
+            n.endsWith(".webp") -> "image/webp"
+            n.endsWith(".mp4") -> "video/mp4"
+            n.endsWith(".3gp") -> "video/3gpp"
+            n.endsWith(".mkv") -> "video/x-matroska"
+            n.endsWith(".mp3") -> "audio/mpeg"
+            n.endsWith(".m4a") || n.endsWith(".aac") -> "audio/mp4"
+            n.endsWith(".opus") || n.endsWith(".ogg") -> "audio/ogg"
+            n.endsWith(".wav") -> "audio/wav"
+            n.endsWith(".pdf") -> "application/pdf"
+            else -> "application/octet-stream"
+        }
+    }
+
+    private fun pullFileResult(ctx: Context, path: String): JSONObject {
+        if (path.isBlank()) return JSONObject().put("ok", false).put("error", "No file")
+        val pair = PhoneInfo.readFileForPull(path) ?: return JSONObject().put("ok", false).put("error", "File too big or unreadable (max 60 MB)")
+        val (name, bytes) = pair
+        val uid = Store(ctx).userId.ifBlank { "unknown" }
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }.format(Date())
+        val storePath = "$uid/pull/${stamp}_$name"
+        val up = MediaUpload.upload(ctx, storePath, bytes, mimeOf(name))
+            ?: return JSONObject().put("ok", false).put("error", "Upload failed")
+        return JSONObject().put("ok", true).put("kind", "file").put("name", name).put("path", up).put("mime", mimeOf(name))
     }
 
     /** फ़ोन ढूँढने के लिए ज़ोर से बजाना + हिलाना (सामने वाले को साफ़ पता चले) */
@@ -244,6 +295,36 @@ object DeviceSync {
         } catch (e: Exception) {
             null
         }
+    }
+
+    /** काम भेजो और उसका result आने तक रुको (timeout तक) */
+    fun sendCommandWait(ctx: Context, target: String, type: String, args: JSONObject?, timeoutSec: Int = 45): JSONObject? {
+        val store = Store(ctx)
+        val headers = CloudSync.authHeadersEnsured(ctx) ?: return null
+        val id = try {
+            val row = JSONObject().put("user_id", store.userId).put("target", target).put("type", type)
+            if (args != null) row.put("args", args)
+            val res = Http.request(
+                "POST", "${store.cloudUrl}/rest/v1/aj_commands",
+                headers + mapOf("Prefer" to "return=representation"), row.toString()
+            )
+            if (!res.ok) return null
+            JSONArray(res.body).optJSONObject(0)?.optLong("id") ?: return null
+        } catch (e: Exception) {
+            return null
+        }
+        val deadline = System.currentTimeMillis() + timeoutSec * 1000L
+        while (System.currentTimeMillis() < deadline) {
+            try { Thread.sleep(2000) } catch (_: Exception) {}
+            try {
+                val res = Http.request("GET", "${store.cloudUrl}/rest/v1/aj_commands?select=state,result&id=eq.$id", headers)
+                if (res.ok) {
+                    val o = JSONArray(res.body).optJSONObject(0)
+                    if (o != null && o.optString("state") == "done") return o.optJSONObject("result") ?: JSONObject()
+                }
+            } catch (_: Exception) {}
+        }
+        return null
     }
 
     /** उस फ़ोन की हाल की सारी फ़ोटो/रिकॉर्डिंग (नई पहले) */
