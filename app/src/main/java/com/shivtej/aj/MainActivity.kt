@@ -268,9 +268,12 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             box.addView(row(
                 btn("📷 Back") { cmd(d, "photo_back") },
                 btn("🤳 Front") { cmd(d, "photo_front") },
-                btn("🎙 Audio") { pickDuration(d, "Audio") { sec -> cmd(d, "record", JSONObject().put("sec", sec)) } },
+                btn("🎙 Audio") { pickDuration(d, "Audio") { sec -> cmd(d, "record", JSONObject().put("sec", sec)) } }
+            ))
+            box.addView(row(
                 btn("🎥 Video") { pickVideoDuration(d) { sec -> cmd(d, "video", JSONObject().put("sec", sec)) } },
-                btn("👁 Live") { openLive(d) }
+                btn("👁 Live") { openLive(d) },
+                btn("🖥 Screen") { startScreen(d) }
             ))
             box.addView(row(
                 btn("💬 Messages") { openMessages(d) },
@@ -527,6 +530,44 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             }.start()
         }
         img.postDelayed({ tick() }, 2500)
+    }
+
+    // ---------------- Screen mirror ----------------
+
+    private fun startScreen(d: DeviceSync.Device) {
+        cmd(d, "screen", JSONObject().put("sec", 120))
+        val img = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(340))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setBackgroundResource(R.color.bg2)
+        }
+        val status = dim("On that phone, tap the 'Screen share requested' notification and Allow…")
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(8), dp(14), 0)
+            addView(img); addView(status)
+        }
+        val stopped = booleanArrayOf(false)
+        val dialog = AlertDialog.Builder(this).setTitle("🖥 Screen — ${d.name}")
+            .setView(box).setPositiveButton("Stop", null)
+            .setOnDismissListener { stopped[0] = true }.create()
+        dialog.show()
+        val path = "${store.userId}/live/screen_${d.id}.jpg"
+        val count = intArrayOf(0)
+        fun tick() {
+            if (stopped[0] || !dialog.isShowing || count[0] > 50) return
+            count[0]++
+            Thread {
+                val url = MediaUpload.sign(this, path)
+                val bytes = if (url != null) Http.getBytes(url) else null
+                val bmp = bytes?.let { try { BitmapFactory.decodeByteArray(it, 0, it.size) } catch (e: Exception) { null } }
+                runOnUiThread {
+                    if (stopped[0] || !dialog.isShowing) return@runOnUiThread
+                    if (bmp != null) { img.setImageBitmap(bmp); status.text = "🔴 Live screen • ${timeLabel(System.currentTimeMillis())}" }
+                    img.postDelayed({ tick() }, 3000)
+                }
+            }.start()
+        }
+        img.postDelayed({ tick() }, 3000)
     }
 
     // ---------------- Messages / Calls ----------------

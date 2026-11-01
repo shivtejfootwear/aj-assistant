@@ -1,11 +1,16 @@
 package com.shivtej.aj
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.media.RingtoneManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import androidx.core.app.NotificationCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -118,6 +123,7 @@ object DeviceSync {
                     // camera/recording: CaptureService करता है और खुद result लिखता है (notification + आवाज़ के साथ)
                     "photo_back", "photo_front", "record", "video", "live" ->
                         CaptureService.start(ctx, id, type, args.optInt("sec", 15), args.optBoolean("front", false))
+                    "screen" -> { screenRequest(ctx, args.optInt("sec", 120)); markDone(ctx, id, JSONObject().put("ok", true)) }
                     else -> markDone(ctx, id, JSONObject().put("ok", false))
                 }
             }
@@ -172,6 +178,32 @@ object DeviceSync {
         val up = MediaUpload.upload(ctx, storePath, bytes, mimeOf(name))
             ?: return JSONObject().put("ok", false).put("error", "Upload failed")
         return JSONObject().put("ok", true).put("kind", "file").put("name", name).put("path", up).put("mime", mimeOf(name))
+    }
+
+    /** screen share माँगना — उस फ़ोन पर notification, tap करके Allow (Android ऐसा ही माँगता है) */
+    private fun screenRequest(ctx: Context, sec: Int) {
+        try {
+            val ch = "aj_screen_req"
+            val nm = ctx.getSystemService(NotificationManager::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                nm.createNotificationChannel(NotificationChannel(ch, "Screen share request", NotificationManager.IMPORTANCE_HIGH))
+            }
+            val act = Intent(ctx, ScreenActivity::class.java).putExtra("sec", sec).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            val pi = PendingIntent.getActivity(ctx, 5, act, flags)
+            val n = NotificationCompat.Builder(ctx, ch)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle("Screen share requested")
+                .setContentText("Tap to allow sharing this screen")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .setFullScreenIntent(pi, true)
+                .build()
+            nm.notify(21, n)
+            AjBus.setStatus("🖥 Screen share requested — tap the notification to allow")
+        } catch (_: Exception) {
+        }
     }
 
     /** फ़ोन ढूँढने के लिए ज़ोर से बजाना + हिलाना (सामने वाले को साफ़ पता चले) */
