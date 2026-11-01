@@ -116,8 +116,8 @@ object DeviceSync {
                     "list_dir" -> markDone(ctx, id, PhoneInfo.listDir(ctx, args.optString("path")))
                     "pull_file" -> markDone(ctx, id, pullFileResult(ctx, args.optString("path")))
                     // camera/recording: CaptureService करता है और खुद result लिखता है (notification + आवाज़ के साथ)
-                    "photo_back", "photo_front", "record", "video" ->
-                        CaptureService.start(ctx, id, type, args.optInt("sec", 15))
+                    "photo_back", "photo_front", "record", "video", "live" ->
+                        CaptureService.start(ctx, id, type, args.optInt("sec", 15), args.optBoolean("front", false))
                     else -> markDone(ctx, id, JSONObject().put("ok", false))
                 }
             }

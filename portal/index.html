@@ -256,7 +256,8 @@ function render(devs){
       mkBtn("📷 Back",()=>cmd(d,"photo_back")),
       mkBtn("🤳 Front",()=>cmd(d,"photo_front")),
       mkBtn("🎙 Audio",()=>pickDuration(panel,"Audio",sec=>cmd(d,"record",{sec}))),
-      mkBtn("🎥 Video",()=>pickVideo(panel,sec=>cmd(d,"video",{sec})))
+      mkBtn("🎥 Video",()=>pickVideo(panel,sec=>cmd(d,"video",{sec}))),
+      mkBtn("👁 Live",()=>openLive(d,panel))
     );
     const r3 = document.createElement("div"); r3.className="row";
     r3.append(
@@ -333,6 +334,31 @@ function pickDuration(panel, label, cb){
   wrap.append(inp,go); panel.append(wrap);
   const note=document.createElement("div"); note.className="hint"; note.textContent="That phone "+(label==="Video"?"records video":"records audio")+" for this long, then it appears in Gallery.";
   panel.append(note);
+}
+
+function openLive(d,panel){
+  panel.innerHTML='<div class="gal-h">👁 Live camera</div>';
+  const grid=document.createElement("div"); grid.className="row";
+  grid.append(mkBtn("▶ Back camera",()=>startLive(d,panel,false)), mkBtn("▶ Front camera",()=>startLive(d,panel,true)));
+  panel.append(grid);
+  const note=document.createElement("div"); note.className="hint"; note.textContent="New picture every ~3 sec for 2 minutes. That phone shows a green camera dot the whole time.";
+  panel.append(note);
+}
+function startLive(d,panel,front){
+  cmd(d,"live",{front, sec:120});
+  panel.innerHTML='<div class="gal-h">👁 Live — '+(front?"front":"back")+' camera</div>';
+  const im=document.createElement("img"); im.className="gal-img"; im.alt="live"; panel.append(im);
+  const status=document.createElement("div"); status.className="muted"; status.style.marginTop="6px"; status.textContent="Waiting for first picture… (a few seconds)"; panel.append(status);
+  let stopped=false, n=0;
+  const stop=document.createElement("button"); stop.textContent="⏹ Stop"; stop.style.marginTop="8px";
+  stop.addEventListener("click",()=>{ stopped=true; status.textContent="Stopped."; }); panel.append(stop);
+  const tick=async()=>{
+    if(stopped || n>46){ if(!stopped) status.textContent="Live ended."; return; }
+    n++;
+    try{ const u=await sign(S.uid+"/live/frame_"+d.device_id+".jpg"); if(u){ im.src=u+"&t="+Date.now(); status.textContent="🔴 Live • "+new Date().toLocaleTimeString(); } }catch(e){}
+    setTimeout(tick,3000);
+  };
+  setTimeout(tick,2500);
 }
 
 function pickVideo(panel, cb){

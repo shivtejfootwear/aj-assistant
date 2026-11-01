@@ -40,12 +40,14 @@ class CaptureService : Service() {
         private const val EXTRA_ID = "cmd_id"
         private const val EXTRA_TYPE = "type"
         private const val EXTRA_SEC = "sec"
+        private const val EXTRA_FRONT = "front"
 
-        fun start(ctx: Context, commandId: Long, type: String, sec: Int) {
+        fun start(ctx: Context, commandId: Long, type: String, sec: Int, front: Boolean = false) {
             val i = Intent(ctx, CaptureService::class.java)
                 .putExtra(EXTRA_ID, commandId)
                 .putExtra(EXTRA_TYPE, type)
                 .putExtra(EXTRA_SEC, sec)
+                .putExtra(EXTRA_FRONT, front)
             ContextCompat.startForegroundService(ctx, i)
         }
     }
@@ -70,12 +72,14 @@ class CaptureService : Service() {
         val type = intent?.getStringExtra(EXTRA_TYPE) ?: "photo_back"
         val sec = (intent?.getIntExtra(EXTRA_SEC, 15) ?: 15).coerceIn(3, 7200)
 
+        val front = intent?.getBooleanExtra(EXTRA_FRONT, false) ?: false
         createChannel()
         val isPhoto = type.startsWith("photo")
-        val useCamera = isPhoto || type == "video"
+        val useCamera = isPhoto || type == "video" || type == "live"
         val label = when {
             isPhoto -> "Taking a photo at another phone's request"
             type == "video" -> "Recording video at another phone's request"
+            type == "live" -> "Live camera for another phone"
             else -> "Recording audio at another phone's request"
         }
         goForeground(useCamera, label)
@@ -83,9 +87,32 @@ class CaptureService : Service() {
         when {
             isPhoto -> doPhoto(id, type == "photo_front")
             type == "video" -> doVideo(id, sec.coerceAtMost(180))
+            type == "live" -> doLive(id, front, sec.coerceAtMost(300))
             else -> doRecord(id, sec)
         }
         return START_NOT_STICKY
+    }
+
+    // ---------------- Live camera (हर कुछ सेकंड नई तस्वीर) ----------------
+
+    private fun doLive(id: Long, front: Boolean, sec: Int) {
+        AjBus.setStatus("👁 Live camera for another phone")
+        val deadline = System.currentTimeMillis() + sec * 1000L
+        val devId = Store(this).deviceId
+        fun shoot() {
+            if (System.currentTimeMillis() > deadline) {
+                done(id, JSONObject().put("ok", true)); finish(); return
+            }
+            CameraCapture.capture(this, front) { bytes ->
+                worker.execute {
+                    if (bytes != null) {
+                        try { MediaUpload.upload(this, "${uid()}/live/frame_$devId.jpg", bytes, "image/jpeg") } catch (_: Exception) {}
+                    }
+                    main.postDelayed({ shoot() }, 1800)
+                }
+            }
+        }
+        shoot()
     }
 
     // ---------------- वीडियो ----------------

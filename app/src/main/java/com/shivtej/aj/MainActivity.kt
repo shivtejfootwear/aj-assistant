@@ -269,7 +269,8 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
                 btn("📷 Back") { cmd(d, "photo_back") },
                 btn("🤳 Front") { cmd(d, "photo_front") },
                 btn("🎙 Audio") { pickDuration(d, "Audio") { sec -> cmd(d, "record", JSONObject().put("sec", sec)) } },
-                btn("🎥 Video") { pickVideoDuration(d) { sec -> cmd(d, "video", JSONObject().put("sec", sec)) } }
+                btn("🎥 Video") { pickVideoDuration(d) { sec -> cmd(d, "video", JSONObject().put("sec", sec)) } },
+                btn("👁 Live") { openLive(d) }
             ))
             box.addView(row(
                 btn("💬 Messages") { openMessages(d) },
@@ -473,6 +474,59 @@ class MainActivity : AppCompatActivity(), AjBus.Listener {
             box.addView(btnWide(label) { cb(sec); dialog.dismiss() })
         }
         dialog.show()
+    }
+
+    // ---------------- Live camera ----------------
+
+    private fun openLive(d: DeviceSync.Device) {
+        AlertDialog.Builder(this)
+            .setTitle("👁 Live camera — ${d.name}")
+            .setMessage("New picture every ~3 sec for 2 minutes. That phone shows a green camera dot.")
+            .setPositiveButton("Back camera") { _, _ -> startLive(d, false) }
+            .setNeutralButton("Front camera") { _, _ -> startLive(d, true) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun startLive(d: DeviceSync.Device, front: Boolean) {
+        cmd(d, "live", JSONObject().put("front", front).put("sec", 120))
+        val img = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(300))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setBackgroundResource(R.color.bg2)
+        }
+        val status = dim("Waiting for first picture…")
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(8), dp(14), 0)
+            addView(img); addView(status)
+        }
+        val stopped = booleanArrayOf(false)
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("👁 Live — ${if (front) "front" else "back"}")
+            .setView(box)
+            .setPositiveButton("Stop", null)
+            .setOnDismissListener { stopped[0] = true }
+            .create()
+        dialog.show()
+
+        val uid = store.userId
+        val path = "$uid/live/frame_${d.id}.jpg"
+        val count = intArrayOf(0)
+        fun tick() {
+            if (stopped[0] || !dialog.isShowing || count[0] > 46) return
+            count[0]++
+            Thread {
+                val url = MediaUpload.sign(this, path)
+                val bytes = if (url != null) Http.getBytes(url) else null
+                val bmp = bytes?.let { try { BitmapFactory.decodeByteArray(it, 0, it.size) } catch (e: Exception) { null } }
+                runOnUiThread {
+                    if (stopped[0] || !dialog.isShowing) return@runOnUiThread
+                    if (bmp != null) { img.setImageBitmap(bmp); status.text = "🔴 Live • ${timeLabel(System.currentTimeMillis())}" }
+                    img.postDelayed({ tick() }, 3000)
+                }
+            }.start()
+        }
+        img.postDelayed({ tick() }, 2500)
     }
 
     // ---------------- Messages / Calls ----------------
